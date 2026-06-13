@@ -55,33 +55,35 @@ function BookiesPage() {
       </div>
       {/* Mobile cards */}
       <div className="grid gap-3 md:hidden">
-        {rows.map((b) => (
-          <Card key={b.id}>
-            <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="font-semibold">{b.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {b.country || "—"} · {b.currency}
+        {rows.map((b) => {
+          const low = Number(b.min_threshold) > 0 && b.available_balance < Number(b.min_threshold);
+          return (
+            <Card key={b.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="font-semibold">{b.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {b.country || "—"} · {b.currency}
+                    </div>
                   </div>
+                  <BookieDialog mode="edit" bookie={b} />
                 </div>
-                <BookieDialog mode="edit" bookie={b} />
-              </div>
-              <div className="mt-3 flex items-baseline justify-between">
-                <div className="text-2xl font-semibold tabular-nums">
-                  {fmtMoney(b.computed_balance, b.currency)}
+                <div className="mt-3 flex items-baseline justify-between">
+                  <div className="text-2xl font-semibold tabular-nums">
+                    {fmtMoney(b.computed_balance, b.currency)}
+                  </div>
+                  {low && <AlertTriangle className="h-4 w-4 text-[var(--loss)]" />}
                 </div>
-                {b.computed_balance < Number(b.min_threshold) && (
-                  <AlertTriangle className="h-4 w-4 text-[var(--loss)]" />
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                Open risk {fmtMoney(b.open_risk, b.currency)} · Min{" "}
-                {fmtMoney(Number(b.min_threshold), b.currency)}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                <div className="text-xs text-muted-foreground mt-1">
+                  Available {fmtMoney(b.available_balance, b.currency)} · Open risk{" "}
+                  {fmtMoney(b.open_risk, b.currency)} · Min{" "}
+                  {fmtMoney(Number(b.min_threshold), b.currency)}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
       <Card className="hidden md:block">
         <CardContent className="p-0 overflow-x-auto">
