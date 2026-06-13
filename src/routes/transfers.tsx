@@ -155,8 +155,8 @@ function TransfersPage() {
               )}
               {(transfersQ.data ?? []).map((t) => (
                 <TableRow key={t.id}>
-                  <TableCell>{bookieMap.get(t.from_bookie_id ?? "")?.name ?? "—"}</TableCell>
-                  <TableCell>{bookieMap.get(t.to_bookie_id ?? "")?.name ?? "—"}</TableCell>
+                  <TableCell>{t.from_bookie_id ? (bookieMap.get(t.from_bookie_id)?.name ?? "—") : "🏦 Bank"}</TableCell>
+                  <TableCell>{t.to_bookie_id ? (bookieMap.get(t.to_bookie_id)?.name ?? "—") : "🏦 Bank"}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {fmtMoney(Number(t.amount), t.currency)}
                   </TableCell>
