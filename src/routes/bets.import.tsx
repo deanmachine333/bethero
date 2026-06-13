@@ -133,7 +133,7 @@ function ImportPage() {
             : computeReturn(stake, odds, isFree, outcome);
         const bookie = existing.get(r.Bookie.toLowerCase())!;
         return {
-          date_placed: new Date(r.DatePlaced).toISOString(),
+          date_placed: parseDateFlexible(String(r.DatePlaced))!.toISOString(),
           bookie_id: bookie.id,
           event: r.Event,
           market: r.Market,
