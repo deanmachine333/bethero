@@ -32,6 +32,9 @@ export const Route = createFileRoute("/")({
     ],
   }),
   component: Dashboard,
+});
+
+
 
 function Dashboard() {
   const bookiesQ = useQuery({ queryKey: ["bookies"], queryFn: fetchBookies });
