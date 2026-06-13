@@ -115,7 +115,7 @@ function Dashboard() {
           empty="All bookies above threshold."
           items={lowBalance.map((b) => ({
             id: b.id,
-            text: `${b.name}: ${fmtMoney(b.computed_balance, b.currency)} (min ${fmtMoney(Number(b.min_threshold), b.currency)})`,
+            text: `${b.name}: ${fmtMoney(b.available_balance, b.currency)} available (min ${fmtMoney(Number(b.min_threshold), b.currency)})`,
           }))}
         />
         <AlertCard
