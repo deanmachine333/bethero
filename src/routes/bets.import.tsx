@@ -77,8 +77,9 @@ function ImportPage() {
   const onFile = async (f: File) => {
     setFileName(f.name);
     try {
-      const parsed = await parseCsv<CsvBetRow>(f);
-      const validated = parsed.map((r) => {
+      const raw = await parseCsv<Record<string, string>>(f);
+      const mapped = raw.map((r) => mapRow(r));
+      const validated = mapped.map((r) => {
         const errs: string[] = [];
         if (!r.DatePlaced) errs.push("DatePlaced");
         else if (!parseDateFlexible(String(r.DatePlaced))) errs.push("DatePlaced (unparseable)");
