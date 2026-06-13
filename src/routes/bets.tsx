@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -42,10 +42,15 @@ import { Plus, Download, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/bets")({
   head: () => ({ meta: [{ title: "Bets — Bookie Wallet" }] }),
-  component: BetsPage,
+  component: BetsRouteComponent,
 });
 
 const OUTCOMES = ["open", "win", "loss", "void", "half_win", "half_loss", "push"];
+
+function BetsRouteComponent() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  return pathname === "/bets" ? <BetsPage /> : <Outlet />;
+}
 
 function BetsPage() {
   const qc = useQueryClient();

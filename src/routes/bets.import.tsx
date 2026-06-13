@@ -29,7 +29,7 @@ function parseDateFlexible(s: string): Date | null {
   const t = s.trim();
   const d1 = new Date(t);
   if (!isNaN(d1.getTime())) return d1;
-  const m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})(?:[ T](\d{1,2}):(\d{2}))?$/);
+  const m = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})(?:[ T](\d{1,2}):(\d{2}))?$/);
   if (m) {
     const [, d, mo, y, hh = "0", mm = "0"] = m;
     const year = y.length === 2 ? 2000 + Number(y) : Number(y);
@@ -85,8 +85,12 @@ function ImportPage() {
         if (!r.Bookie) errs.push("Bookie");
         if (!r.Event) errs.push("Event");
         if (!r.Market) errs.push("Market");
-        if (r.Stake === undefined || r.Stake === "" || Number.isNaN(Number(r.Stake))) errs.push("Stake");
-        if (r.Odds === undefined || r.Odds === "" || Number.isNaN(Number(r.Odds))) errs.push("Odds");
+        if (r.Stake === undefined || r.Stake === "" || Number.isNaN(Number(r.Stake))) {
+          errs.push("Stake");
+        }
+        if (r.Odds === undefined || r.Odds === "" || Number.isNaN(Number(r.Odds))) {
+          errs.push("Odds");
+        }
         return { ...r, __error: errs.length ? `Missing/invalid: ${errs.join(", ")}` : undefined };
       });
       setRows(validated);
@@ -97,14 +101,18 @@ function ImportPage() {
 
   const run = useMutation({
     mutationFn: async () => {
+      if (rows.length === 0) throw new Error("Choose a CSV file first");
       const valid = rows.filter((r) => !r.__error);
-      if (valid.length === 0) throw new Error("No valid rows");
+      if (valid.length === 0) throw new Error("No valid rows to import — check the Status column");
 
       // Build bookie lookup, creating missing
       const existing = new Map((bookiesQ.data ?? []).map((b) => [b.name.toLowerCase(), b]));
       const neededBookies = Array.from(
         new Map(
-          valid.map((r) => [r.Bookie.toLowerCase(), { name: r.Bookie, currency: r.Currency || "GBP" }]),
+          valid.map((r) => [
+            r.Bookie.toLowerCase(),
+            { name: r.Bookie, currency: r.Currency || "GBP" },
+          ]),
         ).values(),
       );
       const missing = neededBookies.filter((n) => !existing.has(n.name.toLowerCase()));
@@ -118,7 +126,10 @@ function ImportPage() {
       }
 
       if (mode === "overwrite") {
-        const { error } = await supabase.from("bets").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+        const { error } = await supabase
+          .from("bets")
+          .delete()
+          .neq("id", "00000000-0000-0000-0000-000000000000");
         if (error) throw error;
       }
 
@@ -150,12 +161,10 @@ function ImportPage() {
         };
       });
 
-      const { error: upErr, count } = await supabase
-        .from("bets")
-        .upsert(records, {
-          onConflict: "date_placed,bookie_id,event,market,stake,odds",
-          count: "exact",
-        });
+      const { error: upErr, count } = await supabase.from("bets").upsert(records, {
+        onConflict: "date_placed,bookie_id,event,market,stake,odds",
+        count: "exact",
+      });
       if (upErr) throw upErr;
 
       await logAudit("import", null, "import", {
@@ -179,9 +188,7 @@ function ImportPage() {
       <Alert className="mb-4">
         <Info className="h-4 w-4" />
         <AlertTitle>Expected columns</AlertTitle>
-        <AlertDescription className="text-xs font-mono">
-          {CSV_HEADERS.join(", ")}
-        </AlertDescription>
+        <AlertDescription className="text-xs font-mono">{CSV_HEADERS.join(", ")}</AlertDescription>
       </Alert>
 
       <div className="mb-4 flex flex-wrap items-end gap-4">
@@ -208,7 +215,7 @@ function ImportPage() {
             </label>
           </RadioGroup>
         </div>
-        <Button onClick={() => run.mutate()} disabled={rows.length === 0 || rows.length - errors === 0 || run.isPending}>
+        <Button onClick={() => run.mutate()} disabled={run.isPending}>
           <Upload className="mr-2 h-4 w-4" />
           {run.isPending ? "Importing…" : `Import ${rows.length - errors} rows`}
         </Button>
@@ -243,9 +250,7 @@ function ImportPage() {
                         {(r as unknown as Record<string, string>)[h] ?? ""}
                       </TableCell>
                     ))}
-                    <TableCell className="text-xs">
-                      {r.__error ?? "ok"}
-                    </TableCell>
+                    <TableCell className="text-xs">{r.__error ?? "ok"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
