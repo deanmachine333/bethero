@@ -132,6 +132,23 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+@theme inline {
+  --color-profit: var(--profit);
+  --color-loss: var(--loss);
+  --color-warn: var(--warn);
+}
+
+:root {
+  --profit: oklch(0.62 0.18 145);
+  --loss: oklch(0.58 0.22 27);
+  --warn: oklch(0.75 0.16 75);
+}
+.dark {
+  --profit: oklch(0.72 0.18 145);
+  --loss: oklch(0.68 0.22 27);
+  --warn: oklch(0.78 0.16 75);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
