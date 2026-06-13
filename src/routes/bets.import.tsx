@@ -161,12 +161,10 @@ function ImportPage() {
         };
       });
 
-      const { error: upErr, count } = await supabase
-        .from("bets")
-        .upsert(records, {
-          onConflict: "date_placed,bookie_id,event,market,stake,odds",
-          count: "exact",
-        });
+      const { error: upErr, count } = await supabase.from("bets").upsert(records, {
+        onConflict: "date_placed,bookie_id,event,market,stake,odds",
+        count: "exact",
+      });
       if (upErr) throw upErr;
 
       await logAudit("import", null, "import", {
@@ -190,9 +188,7 @@ function ImportPage() {
       <Alert className="mb-4">
         <Info className="h-4 w-4" />
         <AlertTitle>Expected columns</AlertTitle>
-        <AlertDescription className="text-xs font-mono">
-          {CSV_HEADERS.join(", ")}
-        </AlertDescription>
+        <AlertDescription className="text-xs font-mono">{CSV_HEADERS.join(", ")}</AlertDescription>
       </Alert>
 
       <div className="mb-4 flex flex-wrap items-end gap-4">
@@ -254,9 +250,7 @@ function ImportPage() {
                         {(r as unknown as Record<string, string>)[h] ?? ""}
                       </TableCell>
                     ))}
-                    <TableCell className="text-xs">
-                      {r.__error ?? "ok"}
-                    </TableCell>
+                    <TableCell className="text-xs">{r.__error ?? "ok"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
