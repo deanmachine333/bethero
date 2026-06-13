@@ -186,12 +186,14 @@ function TransfersPage() {
   );
 }
 
+const BANK = "__bank__";
+
 function TransferDialog() {
   const qc = useQueryClient();
   const bookiesQ = useQuery({ queryKey: ["bookies"], queryFn: fetchBookies });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
-    from_bookie_id: "",
+    from_bookie_id: BANK,
     to_bookie_id: "",
     amount: "100",
     currency: "GBP",
@@ -201,11 +203,17 @@ function TransferDialog() {
 
   const create = useMutation({
     mutationFn: async () => {
+      if (form.from_bookie_id === form.to_bookie_id) {
+        throw new Error("From and To must be different");
+      }
+      if (form.from_bookie_id !== BANK && form.to_bookie_id !== BANK && !form.from_bookie_id) {
+        throw new Error("Pick a source");
+      }
       const { data, error } = await supabase
         .from("transfers")
         .insert({
-          from_bookie_id: form.from_bookie_id || null,
-          to_bookie_id: form.to_bookie_id || null,
+          from_bookie_id: form.from_bookie_id === BANK ? null : form.from_bookie_id || null,
+          to_bookie_id: form.to_bookie_id === BANK ? null : form.to_bookie_id || null,
           amount: Number(form.amount),
           currency: form.currency,
           reference: form.reference || null,
@@ -238,14 +246,19 @@ function TransferDialog() {
         <DialogHeader>
           <DialogTitle>Plan transfer</DialogTitle>
         </DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-2">
+          Pick <strong>Bank</strong> on either side for a deposit-from-bank or withdraw-to-bank.
+          Bookie → Bookie routes via the bank automatically as it progresses.
+        </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <Label className="text-xs">From bookie</Label>
+            <Label className="text-xs">From</Label>
             <Select value={form.from_bookie_id} onValueChange={(v) => setForm({ ...form, from_bookie_id: v })}>
               <SelectTrigger>
                 <SelectValue placeholder="—" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={BANK}>🏦 Bank</SelectItem>
                 {bookieOpts.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
                     {b.name}
@@ -255,12 +268,13 @@ function TransferDialog() {
             </Select>
           </div>
           <div>
-            <Label className="text-xs">To bookie</Label>
+            <Label className="text-xs">To</Label>
             <Select value={form.to_bookie_id} onValueChange={(v) => setForm({ ...form, to_bookie_id: v })}>
               <SelectTrigger>
                 <SelectValue placeholder="—" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={BANK}>🏦 Bank</SelectItem>
                 {bookieOpts.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
                     {b.name}
