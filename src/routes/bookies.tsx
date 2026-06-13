@@ -110,35 +110,42 @@ function BookiesPage() {
             <TableBody>
               {rows.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                     No bookies yet.
                   </TableCell>
                 </TableRow>
               )}
-              {rows.map((b) => (
-                <TableRow key={b.id}>
-                  <TableCell className="font-medium">{b.name}</TableCell>
-                  <TableCell>{b.country || "—"}</TableCell>
-                  <TableCell>{b.currency}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtMoney(Number(b.opening_balance), b.currency)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtMoney(Number(b.min_threshold), b.currency)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {fmtMoney(b.open_risk, b.currency)}
-                  </TableCell>
-                  <TableCell
-                    className={`text-right tabular-nums font-semibold ${b.computed_balance < Number(b.min_threshold) ? "text-[var(--loss)]" : ""}`}
-                  >
-                    {fmtMoney(b.computed_balance, b.currency)}
-                  </TableCell>
-                  <TableCell>
-                    <BookieDialog mode="edit" bookie={b} />
-                  </TableCell>
-                </TableRow>
-              ))}
+              {rows.map((b) => {
+                const low =
+                  Number(b.min_threshold) > 0 && b.available_balance < Number(b.min_threshold);
+                return (
+                  <TableRow key={b.id}>
+                    <TableCell className="font-medium">{b.name}</TableCell>
+                    <TableCell>{b.country || "—"}</TableCell>
+                    <TableCell>{b.currency}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {fmtMoney(Number(b.opening_balance), b.currency)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {fmtMoney(Number(b.min_threshold), b.currency)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {fmtMoney(b.open_risk, b.currency)}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right tabular-nums ${low ? "text-[var(--loss)] font-semibold" : ""}`}
+                    >
+                      {fmtMoney(b.available_balance, b.currency)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold">
+                      {fmtMoney(b.computed_balance, b.currency)}
+                    </TableCell>
+                    <TableCell>
+                      <BookieDialog mode="edit" bookie={b} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>
