@@ -1,9 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   fetchBets,
   fetchBookies,
@@ -14,6 +25,14 @@ import { betProfit, fmtMoney } from "@/lib/calc";
 import { AlertTriangle, TrendingDown, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Dashboard — Bookie Wallet" },
+      { name: "description", content: "Bet tracker and bookie balance dashboard." },
+    ],
+  }),
+  component: Dashboard,
+});
   head: () => ({
     meta: [
       { title: "Dashboard — Bookie Wallet" },
