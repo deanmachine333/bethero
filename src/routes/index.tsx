@@ -47,16 +47,45 @@ function Dashboard() {
   const transfers = transfersQ.data ?? [];
   const withBal = deriveBookieBalances(bookies, bets, transfers);
 
-  // totals per currency
-  const totals = new Map<string, { pl: number; turnover: number; open: number }>();
-  for (const b of bets) {
+  // Bet-type filter for KPIs + cumulative chart
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const filteredBets = useMemo(
+    () => (typeFilter === "all" ? bets : bets.filter((b) => (b.type || "").toUpperCase() === typeFilter)),
+    [bets, typeFilter],
+  );
+
+  // totals per currency (filtered)
+  const totals = new Map<string, { pl: number; turnover: number; open: number; projected: number }>();
+  for (const b of filteredBets) {
     const c = b.currency || "GBP";
-    const t = totals.get(c) ?? { pl: 0, turnover: 0, open: 0 };
+    const t = totals.get(c) ?? { pl: 0, turnover: 0, open: 0, projected: 0 };
     if (b.outcome !== "open") t.pl += betProfit(b);
     t.turnover += Number(b.stake);
-    if (b.outcome === "open") t.open += b.is_free_bet ? 0 : Number(b.stake);
+    if (b.outcome === "open") {
+      t.open += b.is_free_bet ? 0 : Number(b.stake);
+      // Projected if open bets all win: expected return - stake
+      const expReturn = b.is_free_bet
+        ? Number(b.stake) * (Number(b.odds) - 1)
+        : Number(b.stake) * Number(b.odds);
+      const cost = b.is_free_bet ? 0 : Number(b.stake);
+      t.projected += expReturn - cost;
+    }
     totals.set(c, t);
   }
+
+  // Cumulative settled P/L over time (primary currency = first key, else GBP)
+  const primaryCur = [...totals.keys()][0] ?? "GBP";
+  const cumulative = useMemo(() => {
+    const settled = filteredBets
+      .filter((b) => b.outcome !== "open" && (b.currency || "GBP") === primaryCur)
+      .map((b) => ({ d: new Date(b.date_placed).getTime(), pl: betProfit(b) }))
+      .sort((a, b) => a.d - b.d);
+    let acc = 0;
+    return settled.map((s) => {
+      acc += s.pl;
+      return { date: new Date(s.d).toISOString().slice(0, 10), pl: Number(acc.toFixed(2)) };
+    });
+  }, [filteredBets, primaryCur]);
 
   // alerts
   // Alert only when the user has actually set a threshold (>0) AND available cash falls below it.
