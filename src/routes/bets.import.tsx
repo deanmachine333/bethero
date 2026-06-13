@@ -70,8 +70,7 @@ function mapRow(r: Record<string, string>): CsvBetRow {
   const event = get("EVENT");
   const betType = get("BET TYPE").toLowerCase();
   const type = betType.includes("arb") ? "ARB" : betType.includes("ev") ? "EV+" : betType || "EV+";
-  const status = get("STATUS").toLowerCase();
-  const outcome = !status || status === "pending" || status === "placed" ? "open" : status;
+  const outcome = normalizeOutcome(get("STATUS"));
   const clvRaw = get("CLV").replace("%", "").trim();
   const placed = get("PLACED");
   const notes = [get("NOTES"), placed ? `placed:${placed}` : "", get("PROFILE") ? `profile:${get("PROFILE")}` : ""]
