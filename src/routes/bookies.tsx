@@ -105,12 +105,6 @@ function BookiesPage() {
               {rows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                     No bookies yet.
                   </TableCell>
                 </TableRow>
