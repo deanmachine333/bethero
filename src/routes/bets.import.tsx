@@ -208,9 +208,15 @@ function ImportPage() {
             </label>
           </RadioGroup>
         </div>
-        <Button onClick={() => run.mutate()} disabled={rows.length === 0 || run.isPending}>
+        <Button onClick={() => run.mutate()} disabled={rows.length === 0 || rows.length - errors === 0 || run.isPending}>
           <Upload className="mr-2 h-4 w-4" />
           {run.isPending ? "Importing…" : `Import ${rows.length - errors} rows`}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => downloadCsv("sample-bets.csv", toCsv(SAMPLE_ROWS, CSV_HEADERS))}
+        >
+          <Download className="mr-2 h-4 w-4" /> Sample CSV
         </Button>
         <Button asChild variant="link">
           <Link to="/bets">Back to bets</Link>
