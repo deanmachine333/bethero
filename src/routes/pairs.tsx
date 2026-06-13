@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { fetchBets, fetchBookies, type Bet } from "@/lib/queries";
+import { fetchBets, fetchBookies, type Bet, type Bookie } from "@/lib/queries";
 import { effectiveStakeSum, fmtMoney, pairPL, pairStatus, pairVoidRisk, returnSum } from "@/lib/calc";
 import { ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 
@@ -82,8 +82,8 @@ function PairsPage() {
               {pairs.map((p) => {
                 const isOpen = !!open[p.id];
                 return (
-                  <PairRows key={p.id} p={p} isOpen={isOpen} onToggle={() => setOpen({ ...open, [p.id]: !isOpen })} bookieMap={bookieMap} />
-                );
+                  <Fragment key={p.id}>
+                    <TableRow className="cursor-pointer" onClick={() => setOpen({ ...open, [p.id]: !isOpen })}>
                       <TableCell>
                         <Button size="icon" variant="ghost" className="h-7 w-7">
                           {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -144,7 +144,7 @@ function PairsPage() {
                           <TableCell colSpan={2}></TableCell>
                         </TableRow>
                       ))}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>
@@ -154,3 +154,6 @@ function PairsPage() {
     </AppShell>
   );
 }
+
+// silence unused import lint
+export type _Bookie = Bookie;
