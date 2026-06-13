@@ -81,12 +81,13 @@ function ImportPage() {
       const validated = parsed.map((r) => {
         const errs: string[] = [];
         if (!r.DatePlaced) errs.push("DatePlaced");
+        else if (!parseDateFlexible(String(r.DatePlaced))) errs.push("DatePlaced (unparseable)");
         if (!r.Bookie) errs.push("Bookie");
         if (!r.Event) errs.push("Event");
         if (!r.Market) errs.push("Market");
-        if (!r.Stake) errs.push("Stake");
-        if (!r.Odds) errs.push("Odds");
-        return { ...r, __error: errs.length ? `Missing: ${errs.join(", ")}` : undefined };
+        if (r.Stake === undefined || r.Stake === "" || Number.isNaN(Number(r.Stake))) errs.push("Stake");
+        if (r.Odds === undefined || r.Odds === "" || Number.isNaN(Number(r.Odds))) errs.push("Odds");
+        return { ...r, __error: errs.length ? `Missing/invalid: ${errs.join(", ")}` : undefined };
       });
       setRows(validated);
     } catch (e) {
