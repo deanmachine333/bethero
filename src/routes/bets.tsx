@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -48,9 +48,12 @@ export const Route = createFileRoute("/bets")({
 const OUTCOMES = ["open", "win", "loss", "void", "half_win", "half_loss", "push"];
 
 function BetsPage() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const qc = useQueryClient();
   const betsQ = useQuery({ queryKey: ["bets"], queryFn: fetchBets });
   const bookiesQ = useQuery({ queryKey: ["bookies"], queryFn: fetchBookies });
+
+  if (pathname !== "/bets") return <Outlet />;
 
   const [bookieFilter, setBookieFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
