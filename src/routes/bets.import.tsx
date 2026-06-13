@@ -39,6 +39,22 @@ function parseDateFlexible(s: string): Date | null {
   return null;
 }
 
+/** Normalize various status strings (won/lost/refunded/etc.) to our outcome enum. */
+function normalizeOutcome(raw: string): string {
+  const s = (raw ?? "").toString().trim().toLowerCase().replace(/[-\s]+/g, "_");
+  if (!s || s === "pending" || s === "placed" || s === "open" || s === "active" || s === "live")
+    return "open";
+  if (s === "won" || s === "win" || s === "winner") return "win";
+  if (s === "lost" || s === "loss" || s === "lose" || s === "lose_") return "loss";
+  if (s === "void" || s === "voided" || s === "refund" || s === "refunded" || s === "cancelled" || s === "canceled")
+    return "void";
+  if (s === "push" || s === "draw" || s === "tie") return "push";
+  if (s === "half_win" || s === "half_won" || s === "half_w") return "half_win";
+  if (s === "half_loss" || s === "half_lost" || s === "half_l") return "half_loss";
+  if (s === "cashout" || s === "cashed_out" || s === "cash_out") return "win"; // treat as settled; user can edit return
+  return s;
+}
+
 // Map row from either the native CsvBetRow schema OR the user's tracker export
 // (SPORT,LEAGUE,EVENT,TIME,BET,BET TYPE,BOOK,STAKE,CURRENCY,ODDS,EV,CLV,FAIR ODDS,CURRENT FAIR ODDS,PROFILE,STATUS,PLACED,NOTES)
 function mapRow(r: Record<string, string>): CsvBetRow {
@@ -59,7 +75,7 @@ function mapRow(r: Record<string, string>): CsvBetRow {
       Type: get("Type") || "EV+",
       PairID: get("PairID"),
       IsFreeBet: get("IsFreeBet") || "N",
-      Outcome: get("Outcome") || "open",
+      Outcome: normalizeOutcome(get("Outcome") || "open"),
       Return: get("Return"),
       CLV: get("CLV"),
       Notes: get("Notes"),
@@ -70,8 +86,7 @@ function mapRow(r: Record<string, string>): CsvBetRow {
   const event = get("EVENT");
   const betType = get("BET TYPE").toLowerCase();
   const type = betType.includes("arb") ? "ARB" : betType.includes("ev") ? "EV+" : betType || "EV+";
-  const status = get("STATUS").toLowerCase();
-  const outcome = !status || status === "pending" || status === "placed" ? "open" : status;
+  const outcome = normalizeOutcome(get("STATUS"));
   const clvRaw = get("CLV").replace("%", "").trim();
   const placed = get("PLACED");
   const notes = [get("NOTES"), placed ? `placed:${placed}` : "", get("PROFILE") ? `profile:${get("PROFILE")}` : ""]
