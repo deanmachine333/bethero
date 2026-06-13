@@ -39,6 +39,62 @@ function parseDateFlexible(s: string): Date | null {
   return null;
 }
 
+// Map row from either the native CsvBetRow schema OR the user's tracker export
+// (SPORT,LEAGUE,EVENT,TIME,BET,BET TYPE,BOOK,STAKE,CURRENCY,ODDS,EV,CLV,FAIR ODDS,CURRENT FAIR ODDS,PROFILE,STATUS,PLACED,NOTES)
+function mapRow(r: Record<string, string>): CsvBetRow {
+  const get = (k: string) => {
+    const found = Object.keys(r).find((x) => x.trim().toLowerCase() === k.toLowerCase());
+    return found ? String(r[found] ?? "").trim() : "";
+  };
+  // Native format detection
+  if (get("DatePlaced") || get("Bookie")) {
+    return {
+      DatePlaced: get("DatePlaced"),
+      Bookie: get("Bookie"),
+      Event: get("Event"),
+      Market: get("Market"),
+      Stake: get("Stake"),
+      Currency: get("Currency") || "GBP",
+      Odds: get("Odds"),
+      Type: get("Type") || "EV+",
+      PairID: get("PairID"),
+      IsFreeBet: get("IsFreeBet") || "N",
+      Outcome: get("Outcome") || "open",
+      Return: get("Return"),
+      CLV: get("CLV"),
+      Notes: get("Notes"),
+    };
+  }
+  // Tracker export
+  const league = get("LEAGUE");
+  const event = get("EVENT");
+  const betType = get("BET TYPE").toLowerCase();
+  const type = betType.includes("arb") ? "ARB" : betType.includes("ev") ? "EV+" : betType || "EV+";
+  const status = get("STATUS").toLowerCase();
+  const outcome = !status || status === "pending" || status === "placed" ? "open" : status;
+  const clvRaw = get("CLV").replace("%", "").trim();
+  const placed = get("PLACED");
+  const notes = [get("NOTES"), placed ? `placed:${placed}` : "", get("PROFILE") ? `profile:${get("PROFILE")}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    DatePlaced: get("TIME") || placed,
+    Bookie: get("BOOK"),
+    Event: league ? `${league} — ${event}` : event,
+    Market: get("BET"),
+    Stake: get("STAKE"),
+    Currency: get("CURRENCY") || "GBP",
+    Odds: get("ODDS"),
+    Type: type,
+    PairID: "",
+    IsFreeBet: "N",
+    Outcome: outcome,
+    Return: "",
+    CLV: clvRaw,
+    Notes: notes,
+  };
+}
+
 const SAMPLE_ROWS = [
   {
     DatePlaced: "2026-06-10T15:00",
@@ -77,8 +133,9 @@ function ImportPage() {
   const onFile = async (f: File) => {
     setFileName(f.name);
     try {
-      const parsed = await parseCsv<CsvBetRow>(f);
-      const validated = parsed.map((r) => {
+      const raw = await parseCsv<Record<string, string>>(f);
+      const mapped = raw.map((r) => mapRow(r));
+      const validated = mapped.map((r) => {
         const errs: string[] = [];
         if (!r.DatePlaced) errs.push("DatePlaced");
         else if (!parseDateFlexible(String(r.DatePlaced))) errs.push("DatePlaced (unparseable)");
