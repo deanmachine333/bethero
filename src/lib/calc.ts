@@ -75,19 +75,22 @@ export interface BookieBalanceInput {
   withdrawals: number; // transfers Withdrawn FROM this bookie (already left)
   settled_returns: number; // sum of returns for settled bets
   settled_stakes: number; // sum of non-free stakes for settled bets
-  open_stakes: number; // sum of non-free stakes for open bets
+  open_stakes: number; // sum of non-free stakes for open bets (in-play, not lost)
 }
 
+/** Cash position at the bookie: only settled bets and transfers move this.
+ *  Open bets are "in play" — tracked separately as open_risk / available. */
 export function bookieBalance(i: BookieBalanceInput): number {
   return (
-    i.opening_balance +
-    i.deposits -
-    i.withdrawals +
-    i.settled_returns -
-    i.settled_stakes -
-    i.open_stakes
+    i.opening_balance + i.deposits - i.withdrawals + i.settled_returns - i.settled_stakes
   );
 }
+
+/** Funds not currently locked in open bets. */
+export function availableBalance(i: BookieBalanceInput): number {
+  return bookieBalance(i) - i.open_stakes;
+}
+
 
 export function fmtMoney(n: number, currency = "GBP"): string {
   try {
