@@ -29,7 +29,7 @@ function parseDateFlexible(s: string): Date | null {
   const t = s.trim();
   const d1 = new Date(t);
   if (!isNaN(d1.getTime())) return d1;
-  const m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})(?:[ T](\d{1,2}):(\d{2}))?$/);
+  const m = t.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4})(?:[ T](\d{1,2}):(\d{2}))?$/);
   if (m) {
     const [, d, mo, y, hh = "0", mm = "0"] = m;
     const year = y.length === 2 ? 2000 + Number(y) : Number(y);
@@ -85,8 +85,12 @@ function ImportPage() {
         if (!r.Bookie) errs.push("Bookie");
         if (!r.Event) errs.push("Event");
         if (!r.Market) errs.push("Market");
-        if (r.Stake === undefined || r.Stake === "" || Number.isNaN(Number(r.Stake))) errs.push("Stake");
-        if (r.Odds === undefined || r.Odds === "" || Number.isNaN(Number(r.Odds))) errs.push("Odds");
+        if (r.Stake === undefined || r.Stake === "" || Number.isNaN(Number(r.Stake))) {
+          errs.push("Stake");
+        }
+        if (r.Odds === undefined || r.Odds === "" || Number.isNaN(Number(r.Odds))) {
+          errs.push("Odds");
+        }
         return { ...r, __error: errs.length ? `Missing/invalid: ${errs.join(", ")}` : undefined };
       });
       setRows(validated);
@@ -105,7 +109,10 @@ function ImportPage() {
       const existing = new Map((bookiesQ.data ?? []).map((b) => [b.name.toLowerCase(), b]));
       const neededBookies = Array.from(
         new Map(
-          valid.map((r) => [r.Bookie.toLowerCase(), { name: r.Bookie, currency: r.Currency || "GBP" }]),
+          valid.map((r) => [
+            r.Bookie.toLowerCase(),
+            { name: r.Bookie, currency: r.Currency || "GBP" },
+          ]),
         ).values(),
       );
       const missing = neededBookies.filter((n) => !existing.has(n.name.toLowerCase()));
@@ -119,7 +126,10 @@ function ImportPage() {
       }
 
       if (mode === "overwrite") {
-        const { error } = await supabase.from("bets").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+        const { error } = await supabase
+          .from("bets")
+          .delete()
+          .neq("id", "00000000-0000-0000-0000-000000000000");
         if (error) throw error;
       }
 
