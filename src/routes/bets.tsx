@@ -42,18 +42,20 @@ import { Plus, Download, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/bets")({
   head: () => ({ meta: [{ title: "Bets — Bookie Wallet" }] }),
-  component: BetsPage,
+  component: BetsRouteComponent,
 });
 
 const OUTCOMES = ["open", "win", "loss", "void", "half_win", "half_loss", "push"];
 
-function BetsPage() {
+function BetsRouteComponent() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  return pathname === "/bets" ? <BetsPage /> : <Outlet />;
+}
+
+function BetsPage() {
   const qc = useQueryClient();
   const betsQ = useQuery({ queryKey: ["bets"], queryFn: fetchBets });
   const bookiesQ = useQuery({ queryKey: ["bookies"], queryFn: fetchBookies });
-
-  if (pathname !== "/bets") return <Outlet />;
 
   const [bookieFilter, setBookieFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
