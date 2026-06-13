@@ -128,6 +128,22 @@ function Dashboard() {
         </Card>
       )}
 
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-medium text-muted-foreground">
+          Performance {typeFilter !== "all" && <Badge variant="outline">{typeFilter}</Badge>}
+        </h2>
+        <ToggleGroup
+          type="single"
+          value={typeFilter}
+          onValueChange={(v) => v && setTypeFilter(v)}
+          size="sm"
+        >
+          <ToggleGroupItem value="all">All</ToggleGroupItem>
+          <ToggleGroupItem value="EV+">EV+</ToggleGroupItem>
+          <ToggleGroupItem value="ARB">Arb</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         {[...totals.entries()].map(([cur, t]) => (
           <Card key={cur}>
@@ -145,10 +161,43 @@ function Dashboard() {
               <p className="text-xs text-muted-foreground mt-1">
                 Turnover {fmtMoney(t.turnover, cur)} · Open risk {fmtMoney(t.open, cur)}
               </p>
+              <p className="text-xs text-muted-foreground">
+                Projected if open wins: {fmtMoney(t.pl + t.projected, cur)}
+              </p>
             </CardContent>
           </Card>
         ))}
       </section>
+
+      {cumulative.length > 1 && (
+        <Card className="mb-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Cumulative settled P/L ({primaryCur})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={cumulative} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="plFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={32} />
+                <YAxis tick={{ fontSize: 11 }} width={60} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }}
+                  formatter={(v: number) => fmtMoney(v, primaryCur)}
+                />
+                <Area type="monotone" dataKey="pl" stroke="hsl(var(--primary))" fill="url(#plFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       <section className="grid gap-4 lg:grid-cols-3">
         <AlertCard
