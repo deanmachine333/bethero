@@ -96,8 +96,15 @@ function BookiesPage() {
                 <TableHead className="text-right">Opening</TableHead>
                 <TableHead className="text-right">Min threshold</TableHead>
                 <TableHead className="text-right">Open risk</TableHead>
-                <TableHead className="text-right">Current balance</TableHead>
+                <TableHead className="text-right">Available</TableHead>
+                <TableHead className="text-right">Balance</TableHead>
                 <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
               </TableRow>
             </TableHeader>
             <TableBody>
