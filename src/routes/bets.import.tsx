@@ -75,7 +75,7 @@ function mapRow(r: Record<string, string>): CsvBetRow {
       Type: get("Type") || "EV+",
       PairID: get("PairID"),
       IsFreeBet: get("IsFreeBet") || "N",
-      Outcome: get("Outcome") || "open",
+      Outcome: normalizeOutcome(get("Outcome") || "open"),
       Return: get("Return"),
       CLV: get("CLV"),
       Notes: get("Notes"),
