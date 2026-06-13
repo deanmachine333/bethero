@@ -71,8 +71,8 @@ export async function createBet(input: {
     p_date: input.date,
     p_bet_type: input.bet_type,
     p_event: input.event,
-    p_market: input.market ?? null,
-    p_notes: input.notes ?? null,
+    p_market: (input.market ?? null) as never,
+    p_notes: (input.notes ?? null) as never,
     p_tags: input.tags ?? [],
     p_legs: input.legs as never,
   });
@@ -97,11 +97,11 @@ export async function createTransfer(
   memo?: string,
 ) {
   const { error } = await supabase.rpc("create_transfer_with_ledger", {
-    p_from: from,
-    p_to: to,
+    p_from: from as never,
+    p_to: to as never,
     p_amount: amount,
     p_when: when ?? new Date().toISOString(),
-    p_memo: memo ?? null,
+    p_memo: (memo ?? null) as never,
   });
   if (error) throw error;
 }
