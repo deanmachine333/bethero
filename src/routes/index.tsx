@@ -46,7 +46,10 @@ function Dashboard() {
   }
 
   // alerts
-  const lowBalance = withBal.filter((b) => b.computed_balance < Number(b.min_threshold));
+  // Alert only when the user has actually set a threshold (>0) AND available cash falls below it.
+  const lowBalance = withBal.filter(
+    (b) => Number(b.min_threshold) > 0 && b.available_balance < Number(b.min_threshold),
+  );
   const pendingOld = transfers.filter((t) => {
     if (t.status === "deposited" || !t.withdraw_date) return false;
     const days = (Date.now() - new Date(t.withdraw_date).getTime()) / 86_400_000;
@@ -112,7 +115,7 @@ function Dashboard() {
           empty="All bookies above threshold."
           items={lowBalance.map((b) => ({
             id: b.id,
-            text: `${b.name}: ${fmtMoney(b.computed_balance, b.currency)} (min ${fmtMoney(Number(b.min_threshold), b.currency)})`,
+            text: `${b.name}: ${fmtMoney(b.available_balance, b.currency)} available (min ${fmtMoney(Number(b.min_threshold), b.currency)})`,
           }))}
         />
         <AlertCard
