@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
-import { bookieBalance, effectiveStakeSum, returnSum } from "./calc";
+import { availableBalance, bookieBalance, effectiveStakeSum, returnSum } from "./calc";
 
 export type Bookie = Database["public"]["Tables"]["bookies"]["Row"];
 export type Bet = Database["public"]["Tables"]["bets"]["Row"];
