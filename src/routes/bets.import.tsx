@@ -16,13 +16,47 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { parseCsv, type CsvBetRow, CSV_HEADERS } from "@/lib/csv";
+import { parseCsv, type CsvBetRow, CSV_HEADERS, downloadCsv, toCsv } from "@/lib/csv";
 import { computeReturn } from "@/lib/calc";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchBookies } from "@/lib/queries";
 import { logAudit } from "@/lib/audit";
 import { toast } from "sonner";
-import { Info, Upload } from "lucide-react";
+import { Download, Info, Upload } from "lucide-react";
+
+function parseDateFlexible(s: string): Date | null {
+  if (!s) return null;
+  const t = s.trim();
+  const d1 = new Date(t);
+  if (!isNaN(d1.getTime())) return d1;
+  const m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})(?:[ T](\d{1,2}):(\d{2}))?$/);
+  if (m) {
+    const [, d, mo, y, hh = "0", mm = "0"] = m;
+    const year = y.length === 2 ? 2000 + Number(y) : Number(y);
+    const d2 = new Date(year, Number(mo) - 1, Number(d), Number(hh), Number(mm));
+    if (!isNaN(d2.getTime())) return d2;
+  }
+  return null;
+}
+
+const SAMPLE_ROWS = [
+  {
+    DatePlaced: "2026-06-10T15:00",
+    Bookie: "Bet365",
+    Event: "Arsenal vs Chelsea",
+    Market: "Match Winner — Arsenal",
+    Stake: "20",
+    Currency: "GBP",
+    Odds: "2.10",
+    Type: "EV+",
+    PairID: "",
+    IsFreeBet: "N",
+    Outcome: "open",
+    Return: "",
+    CLV: "",
+    Notes: "sample",
+  },
+];
 
 export const Route = createFileRoute("/bets/import")({
   head: () => ({ meta: [{ title: "Import CSV — Bookie Wallet" }] }),
@@ -47,12 +81,13 @@ function ImportPage() {
       const validated = parsed.map((r) => {
         const errs: string[] = [];
         if (!r.DatePlaced) errs.push("DatePlaced");
+        else if (!parseDateFlexible(String(r.DatePlaced))) errs.push("DatePlaced (unparseable)");
         if (!r.Bookie) errs.push("Bookie");
         if (!r.Event) errs.push("Event");
         if (!r.Market) errs.push("Market");
-        if (!r.Stake) errs.push("Stake");
-        if (!r.Odds) errs.push("Odds");
-        return { ...r, __error: errs.length ? `Missing: ${errs.join(", ")}` : undefined };
+        if (r.Stake === undefined || r.Stake === "" || Number.isNaN(Number(r.Stake))) errs.push("Stake");
+        if (r.Odds === undefined || r.Odds === "" || Number.isNaN(Number(r.Odds))) errs.push("Odds");
+        return { ...r, __error: errs.length ? `Missing/invalid: ${errs.join(", ")}` : undefined };
       });
       setRows(validated);
     } catch (e) {
@@ -98,7 +133,7 @@ function ImportPage() {
             : computeReturn(stake, odds, isFree, outcome);
         const bookie = existing.get(r.Bookie.toLowerCase())!;
         return {
-          date_placed: new Date(r.DatePlaced).toISOString(),
+          date_placed: parseDateFlexible(String(r.DatePlaced))!.toISOString(),
           bookie_id: bookie.id,
           event: r.Event,
           market: r.Market,
@@ -173,9 +208,15 @@ function ImportPage() {
             </label>
           </RadioGroup>
         </div>
-        <Button onClick={() => run.mutate()} disabled={rows.length === 0 || run.isPending}>
+        <Button onClick={() => run.mutate()} disabled={rows.length === 0 || rows.length - errors === 0 || run.isPending}>
           <Upload className="mr-2 h-4 w-4" />
           {run.isPending ? "Importing…" : `Import ${rows.length - errors} rows`}
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => downloadCsv("sample-bets.csv", toCsv(SAMPLE_ROWS, CSV_HEADERS))}
+        >
+          <Download className="mr-2 h-4 w-4" /> Sample CSV
         </Button>
         <Button asChild variant="link">
           <Link to="/bets">Back to bets</Link>
