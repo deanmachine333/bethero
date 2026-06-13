@@ -32,15 +32,6 @@ export const Route = createFileRoute("/")({
     ],
   }),
   component: Dashboard,
-});
-  head: () => ({
-    meta: [
-      { title: "Dashboard — Bookie Wallet" },
-      { name: "description", content: "Bet tracker and bookie balance dashboard." },
-    ],
-  }),
-  component: Dashboard,
-});
 
 function Dashboard() {
   const bookiesQ = useQuery({ queryKey: ["bookies"], queryFn: fetchBookies });
