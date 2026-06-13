@@ -9,38 +9,194 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TransfersRouteImport } from './routes/transfers'
+import { Route as PairsRouteImport } from './routes/pairs'
+import { Route as HelpRouteImport } from './routes/help'
+import { Route as BookiesRouteImport } from './routes/bookies'
+import { Route as BetsRouteImport } from './routes/bets'
+import { Route as BankRouteImport } from './routes/bank'
+import { Route as AuditRouteImport } from './routes/audit'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BetsImportRouteImport } from './routes/bets.import'
 
+const TransfersRoute = TransfersRouteImport.update({
+  id: '/transfers',
+  path: '/transfers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PairsRoute = PairsRouteImport.update({
+  id: '/pairs',
+  path: '/pairs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookiesRoute = BookiesRouteImport.update({
+  id: '/bookies',
+  path: '/bookies',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BetsRoute = BetsRouteImport.update({
+  id: '/bets',
+  path: '/bets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BankRoute = BankRouteImport.update({
+  id: '/bank',
+  path: '/bank',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditRoute = AuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BetsImportRoute = BetsImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => BetsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/audit': typeof AuditRoute
+  '/bank': typeof BankRoute
+  '/bets': typeof BetsRouteWithChildren
+  '/bookies': typeof BookiesRoute
+  '/help': typeof HelpRoute
+  '/pairs': typeof PairsRoute
+  '/transfers': typeof TransfersRoute
+  '/bets/import': typeof BetsImportRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/audit': typeof AuditRoute
+  '/bank': typeof BankRoute
+  '/bets': typeof BetsRouteWithChildren
+  '/bookies': typeof BookiesRoute
+  '/help': typeof HelpRoute
+  '/pairs': typeof PairsRoute
+  '/transfers': typeof TransfersRoute
+  '/bets/import': typeof BetsImportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/audit': typeof AuditRoute
+  '/bank': typeof BankRoute
+  '/bets': typeof BetsRouteWithChildren
+  '/bookies': typeof BookiesRoute
+  '/help': typeof HelpRoute
+  '/pairs': typeof PairsRoute
+  '/transfers': typeof TransfersRoute
+  '/bets/import': typeof BetsImportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/audit'
+    | '/bank'
+    | '/bets'
+    | '/bookies'
+    | '/help'
+    | '/pairs'
+    | '/transfers'
+    | '/bets/import'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/audit'
+    | '/bank'
+    | '/bets'
+    | '/bookies'
+    | '/help'
+    | '/pairs'
+    | '/transfers'
+    | '/bets/import'
+  id:
+    | '__root__'
+    | '/'
+    | '/audit'
+    | '/bank'
+    | '/bets'
+    | '/bookies'
+    | '/help'
+    | '/pairs'
+    | '/transfers'
+    | '/bets/import'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuditRoute: typeof AuditRoute
+  BankRoute: typeof BankRoute
+  BetsRoute: typeof BetsRouteWithChildren
+  BookiesRoute: typeof BookiesRoute
+  HelpRoute: typeof HelpRoute
+  PairsRoute: typeof PairsRoute
+  TransfersRoute: typeof TransfersRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/transfers': {
+      id: '/transfers'
+      path: '/transfers'
+      fullPath: '/transfers'
+      preLoaderRoute: typeof TransfersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pairs': {
+      id: '/pairs'
+      path: '/pairs'
+      fullPath: '/pairs'
+      preLoaderRoute: typeof PairsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bookies': {
+      id: '/bookies'
+      path: '/bookies'
+      fullPath: '/bookies'
+      preLoaderRoute: typeof BookiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bets': {
+      id: '/bets'
+      path: '/bets'
+      fullPath: '/bets'
+      preLoaderRoute: typeof BetsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bank': {
+      id: '/bank'
+      path: '/bank'
+      fullPath: '/bank'
+      preLoaderRoute: typeof BankRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit': {
+      id: '/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +204,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bets/import': {
+      id: '/bets/import'
+      path: '/import'
+      fullPath: '/bets/import'
+      preLoaderRoute: typeof BetsImportRouteImport
+      parentRoute: typeof BetsRoute
+    }
   }
 }
 
+interface BetsRouteChildren {
+  BetsImportRoute: typeof BetsImportRoute
+}
+
+const BetsRouteChildren: BetsRouteChildren = {
+  BetsImportRoute: BetsImportRoute,
+}
+
+const BetsRouteWithChildren = BetsRoute._addFileChildren(BetsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuditRoute: AuditRoute,
+  BankRoute: BankRoute,
+  BetsRoute: BetsRouteWithChildren,
+  BookiesRoute: BookiesRoute,
+  HelpRoute: HelpRoute,
+  PairsRoute: PairsRoute,
+  TransfersRoute: TransfersRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
