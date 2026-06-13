@@ -97,8 +97,9 @@ function ImportPage() {
 
   const run = useMutation({
     mutationFn: async () => {
+      if (rows.length === 0) throw new Error("Choose a CSV file first");
       const valid = rows.filter((r) => !r.__error);
-      if (valid.length === 0) throw new Error("No valid rows");
+      if (valid.length === 0) throw new Error("No valid rows to import — check the Status column");
 
       // Build bookie lookup, creating missing
       const existing = new Map((bookiesQ.data ?? []).map((b) => [b.name.toLowerCase(), b]));
@@ -208,7 +209,7 @@ function ImportPage() {
             </label>
           </RadioGroup>
         </div>
-        <Button onClick={() => run.mutate()} disabled={rows.length === 0 || rows.length - errors === 0 || run.isPending}>
+        <Button onClick={() => run.mutate()} disabled={run.isPending}>
           <Upload className="mr-2 h-4 w-4" />
           {run.isPending ? "Importing…" : `Import ${rows.length - errors} rows`}
         </Button>
