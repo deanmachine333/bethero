@@ -9,230 +9,256 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TransfersRouteImport } from './routes/transfers'
-import { Route as PairsRouteImport } from './routes/pairs'
-import { Route as HelpRouteImport } from './routes/help'
-import { Route as BookiesRouteImport } from './routes/bookies'
-import { Route as BetsRouteImport } from './routes/bets'
-import { Route as BankRouteImport } from './routes/bank'
-import { Route as AuditRouteImport } from './routes/audit'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as BetsImportRouteImport } from './routes/bets.import'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedTransfersRouteImport } from './routes/_authenticated/transfers'
+import { Route as AuthenticatedSetupRouteImport } from './routes/_authenticated/setup'
+import { Route as AuthenticatedHistoryRouteImport } from './routes/_authenticated/history'
+import { Route as AuthenticatedBetsRouteImport } from './routes/_authenticated/bets'
+import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
+import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
+import { Route as AuthenticatedBetsImportRouteImport } from './routes/_authenticated/bets.import'
 
-const TransfersRoute = TransfersRouteImport.update({
-  id: '/transfers',
-  path: '/transfers',
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PairsRoute = PairsRouteImport.update({
-  id: '/pairs',
-  path: '/pairs',
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HelpRoute = HelpRouteImport.update({
-  id: '/help',
-  path: '/help',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BookiesRoute = BookiesRouteImport.update({
-  id: '/bookies',
-  path: '/bookies',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BetsRoute = BetsRouteImport.update({
-  id: '/bets',
-  path: '/bets',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BankRoute = BankRouteImport.update({
-  id: '/bank',
-  path: '/bank',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuditRoute = AuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const BetsImportRoute = BetsImportRouteImport.update({
+const AuthenticatedTransfersRoute = AuthenticatedTransfersRouteImport.update({
+  id: '/transfers',
+  path: '/transfers',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSetupRoute = AuthenticatedSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedHistoryRoute = AuthenticatedHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBetsRoute = AuthenticatedBetsRouteImport.update({
+  id: '/bets',
+  path: '/bets',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAnalyticsRoute = AuthenticatedAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAccountsRoute = AuthenticatedAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBetsImportRoute = AuthenticatedBetsImportRouteImport.update({
   id: '/import',
   path: '/import',
-  getParentRoute: () => BetsRoute,
+  getParentRoute: () => AuthenticatedBetsRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/audit': typeof AuditRoute
-  '/bank': typeof BankRoute
-  '/bets': typeof BetsRouteWithChildren
-  '/bookies': typeof BookiesRoute
-  '/help': typeof HelpRoute
-  '/pairs': typeof PairsRoute
-  '/transfers': typeof TransfersRoute
-  '/bets/import': typeof BetsImportRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/auth': typeof AuthRoute
+  '/accounts': typeof AuthenticatedAccountsRoute
+  '/analytics': typeof AuthenticatedAnalyticsRoute
+  '/bets': typeof AuthenticatedBetsRouteWithChildren
+  '/history': typeof AuthenticatedHistoryRoute
+  '/setup': typeof AuthenticatedSetupRoute
+  '/transfers': typeof AuthenticatedTransfersRoute
+  '/bets/import': typeof AuthenticatedBetsImportRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/audit': typeof AuditRoute
-  '/bank': typeof BankRoute
-  '/bets': typeof BetsRouteWithChildren
-  '/bookies': typeof BookiesRoute
-  '/help': typeof HelpRoute
-  '/pairs': typeof PairsRoute
-  '/transfers': typeof TransfersRoute
-  '/bets/import': typeof BetsImportRoute
+  '/auth': typeof AuthRoute
+  '/accounts': typeof AuthenticatedAccountsRoute
+  '/analytics': typeof AuthenticatedAnalyticsRoute
+  '/bets': typeof AuthenticatedBetsRouteWithChildren
+  '/history': typeof AuthenticatedHistoryRoute
+  '/setup': typeof AuthenticatedSetupRoute
+  '/transfers': typeof AuthenticatedTransfersRoute
+  '/': typeof AuthenticatedIndexRoute
+  '/bets/import': typeof AuthenticatedBetsImportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/audit': typeof AuditRoute
-  '/bank': typeof BankRoute
-  '/bets': typeof BetsRouteWithChildren
-  '/bookies': typeof BookiesRoute
-  '/help': typeof HelpRoute
-  '/pairs': typeof PairsRoute
-  '/transfers': typeof TransfersRoute
-  '/bets/import': typeof BetsImportRoute
+  '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
+  '/_authenticated/analytics': typeof AuthenticatedAnalyticsRoute
+  '/_authenticated/bets': typeof AuthenticatedBetsRouteWithChildren
+  '/_authenticated/history': typeof AuthenticatedHistoryRoute
+  '/_authenticated/setup': typeof AuthenticatedSetupRoute
+  '/_authenticated/transfers': typeof AuthenticatedTransfersRoute
+  '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/bets/import': typeof AuthenticatedBetsImportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/audit'
-    | '/bank'
+    | '/auth'
+    | '/accounts'
+    | '/analytics'
     | '/bets'
-    | '/bookies'
-    | '/help'
-    | '/pairs'
+    | '/history'
+    | '/setup'
     | '/transfers'
     | '/bets/import'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
-    | '/audit'
-    | '/bank'
+    | '/auth'
+    | '/accounts'
+    | '/analytics'
     | '/bets'
-    | '/bookies'
-    | '/help'
-    | '/pairs'
+    | '/history'
+    | '/setup'
     | '/transfers'
+    | '/'
     | '/bets/import'
   id:
     | '__root__'
-    | '/'
-    | '/audit'
-    | '/bank'
-    | '/bets'
-    | '/bookies'
-    | '/help'
-    | '/pairs'
-    | '/transfers'
-    | '/bets/import'
+    | '/_authenticated'
+    | '/auth'
+    | '/_authenticated/accounts'
+    | '/_authenticated/analytics'
+    | '/_authenticated/bets'
+    | '/_authenticated/history'
+    | '/_authenticated/setup'
+    | '/_authenticated/transfers'
+    | '/_authenticated/'
+    | '/_authenticated/bets/import'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AuditRoute: typeof AuditRoute
-  BankRoute: typeof BankRoute
-  BetsRoute: typeof BetsRouteWithChildren
-  BookiesRoute: typeof BookiesRoute
-  HelpRoute: typeof HelpRoute
-  PairsRoute: typeof PairsRoute
-  TransfersRoute: typeof TransfersRoute
+  AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/transfers': {
-      id: '/transfers'
-      path: '/transfers'
-      fullPath: '/transfers'
-      preLoaderRoute: typeof TransfersRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/pairs': {
-      id: '/pairs'
-      path: '/pairs'
-      fullPath: '/pairs'
-      preLoaderRoute: typeof PairsRouteImport
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/help': {
-      id: '/help'
-      path: '/help'
-      fullPath: '/help'
-      preLoaderRoute: typeof HelpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bookies': {
-      id: '/bookies'
-      path: '/bookies'
-      fullPath: '/bookies'
-      preLoaderRoute: typeof BookiesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bets': {
-      id: '/bets'
-      path: '/bets'
-      fullPath: '/bets'
-      preLoaderRoute: typeof BetsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bank': {
-      id: '/bank'
-      path: '/bank'
-      fullPath: '/bank'
-      preLoaderRoute: typeof BankRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/audit': {
-      id: '/audit'
-      path: '/audit'
-      fullPath: '/audit'
-      preLoaderRoute: typeof AuditRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
+    '/_authenticated/': {
+      id: '/_authenticated/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/bets/import': {
-      id: '/bets/import'
+    '/_authenticated/transfers': {
+      id: '/_authenticated/transfers'
+      path: '/transfers'
+      fullPath: '/transfers'
+      preLoaderRoute: typeof AuthenticatedTransfersRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/setup': {
+      id: '/_authenticated/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof AuthenticatedSetupRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/history': {
+      id: '/_authenticated/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof AuthenticatedHistoryRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/bets': {
+      id: '/_authenticated/bets'
+      path: '/bets'
+      fullPath: '/bets'
+      preLoaderRoute: typeof AuthenticatedBetsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/analytics': {
+      id: '/_authenticated/analytics'
+      path: '/analytics'
+      fullPath: '/analytics'
+      preLoaderRoute: typeof AuthenticatedAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/accounts': {
+      id: '/_authenticated/accounts'
+      path: '/accounts'
+      fullPath: '/accounts'
+      preLoaderRoute: typeof AuthenticatedAccountsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/bets/import': {
+      id: '/_authenticated/bets/import'
       path: '/import'
       fullPath: '/bets/import'
-      preLoaderRoute: typeof BetsImportRouteImport
-      parentRoute: typeof BetsRoute
+      preLoaderRoute: typeof AuthenticatedBetsImportRouteImport
+      parentRoute: typeof AuthenticatedBetsRoute
     }
   }
 }
 
-interface BetsRouteChildren {
-  BetsImportRoute: typeof BetsImportRoute
+interface AuthenticatedBetsRouteChildren {
+  AuthenticatedBetsImportRoute: typeof AuthenticatedBetsImportRoute
 }
 
-const BetsRouteChildren: BetsRouteChildren = {
-  BetsImportRoute: BetsImportRoute,
+const AuthenticatedBetsRouteChildren: AuthenticatedBetsRouteChildren = {
+  AuthenticatedBetsImportRoute: AuthenticatedBetsImportRoute,
 }
 
-const BetsRouteWithChildren = BetsRoute._addFileChildren(BetsRouteChildren)
+const AuthenticatedBetsRouteWithChildren =
+  AuthenticatedBetsRoute._addFileChildren(AuthenticatedBetsRouteChildren)
+
+interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
+  AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
+  AuthenticatedBetsRoute: typeof AuthenticatedBetsRouteWithChildren
+  AuthenticatedHistoryRoute: typeof AuthenticatedHistoryRoute
+  AuthenticatedSetupRoute: typeof AuthenticatedSetupRoute
+  AuthenticatedTransfersRoute: typeof AuthenticatedTransfersRoute
+  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+}
+
+const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAccountsRoute: AuthenticatedAccountsRoute,
+  AuthenticatedAnalyticsRoute: AuthenticatedAnalyticsRoute,
+  AuthenticatedBetsRoute: AuthenticatedBetsRouteWithChildren,
+  AuthenticatedHistoryRoute: AuthenticatedHistoryRoute,
+  AuthenticatedSetupRoute: AuthenticatedSetupRoute,
+  AuthenticatedTransfersRoute: AuthenticatedTransfersRoute,
+  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+}
+
+const AuthenticatedRouteRouteWithChildren =
+  AuthenticatedRouteRoute._addFileChildren(AuthenticatedRouteRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AuditRoute: AuditRoute,
-  BankRoute: BankRoute,
-  BetsRoute: BetsRouteWithChildren,
-  BookiesRoute: BookiesRoute,
-  HelpRoute: HelpRoute,
-  PairsRoute: PairsRoute,
-  TransfersRoute: TransfersRoute,
+  AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounts: {
+        Row: {
+          colour: string | null
+          created_at: string
+          currency: string
+          icon: string | null
+          id: string
+          is_active: boolean
+          kind: string
+          min_threshold: number
+          name: string
+          notes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          colour?: string | null
+          created_at?: string
+          currency?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          kind: string
+          min_threshold?: number
+          name: string
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          colour?: string | null
+          created_at?: string
+          currency?: string
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          min_threshold?: number
+          name?: string
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       audit_log: {
         Row: {
           action: string
@@ -97,6 +142,75 @@ export type Database = {
           },
         ]
       }
+      bet_legs: {
+        Row: {
+          account_id: string
+          bet_id: string
+          created_at: string
+          free_bet_type: string | null
+          id: string
+          is_free_bet: boolean
+          leg_number: number
+          odds: number
+          outcome: string
+          selection: string | null
+          settled_at: string | null
+          stake: number
+          stake_prefunded: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          bet_id: string
+          created_at?: string
+          free_bet_type?: string | null
+          id?: string
+          is_free_bet?: boolean
+          leg_number?: number
+          odds?: number
+          outcome?: string
+          selection?: string | null
+          settled_at?: string | null
+          stake?: number
+          stake_prefunded?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          bet_id?: string
+          created_at?: string
+          free_bet_type?: string | null
+          id?: string
+          is_free_bet?: boolean
+          leg_number?: number
+          odds?: number
+          outcome?: string
+          selection?: string | null
+          settled_at?: string | null
+          stake?: number
+          stake_prefunded?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bet_legs_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bet_legs_bet_id_fkey"
+            columns: ["bet_id"]
+            isOneToOne: false
+            referencedRelation: "bets_v2"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bets: {
         Row: {
           bookie_id: string
@@ -165,6 +279,48 @@ export type Database = {
           },
         ]
       }
+      bets_v2: {
+        Row: {
+          bet_type: string
+          created_at: string
+          date_placed: string
+          event: string
+          id: string
+          market: string | null
+          notes: string | null
+          status: string
+          tags: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bet_type: string
+          created_at?: string
+          date_placed?: string
+          event: string
+          id?: string
+          market?: string | null
+          notes?: string | null
+          status?: string
+          tags?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bet_type?: string
+          created_at?: string
+          date_placed?: string
+          event?: string
+          id?: string
+          market?: string | null
+          notes?: string | null
+          status?: string
+          tags?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       bookies: {
         Row: {
           country: string | null
@@ -197,6 +353,87 @@ export type Database = {
           name?: string
           notes?: string | null
           opening_balance?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ledger_entries: {
+        Row: {
+          account_id: string
+          amount: number
+          bet_leg_id: string | null
+          created_at: string
+          entry_type: string
+          id: string
+          memo: string | null
+          occurred_at: string
+          transfer_group_id: string | null
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          bet_leg_id?: string | null
+          created_at?: string
+          entry_type: string
+          id?: string
+          memo?: string | null
+          occurred_at?: string
+          transfer_group_id?: string | null
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          bet_leg_id?: string | null
+          created_at?: string
+          entry_type?: string
+          id?: string
+          memo?: string | null
+          occurred_at?: string
+          transfer_group_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ledger_entries_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ledger_entries_bet_leg_id_fkey"
+            columns: ["bet_leg_id"]
+            isOneToOne: false
+            referencedRelation: "bet_legs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          is_owner: boolean
+          setup_completed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id: string
+          is_owner?: boolean
+          setup_completed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_owner?: boolean
+          setup_completed_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -269,7 +506,42 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_bet_with_ledger: {
+        Args: {
+          p_bet_type: string
+          p_date: string
+          p_event: string
+          p_legs: Json
+          p_market: string
+          p_notes: string
+          p_tags: string[]
+        }
+        Returns: string
+      }
+      create_transfer_with_ledger: {
+        Args: {
+          p_amount: number
+          p_from: string
+          p_memo?: string
+          p_to: string
+          p_when?: string
+        }
+        Returns: string
+      }
+      leg_return: {
+        Args: {
+          p_free_type: string
+          p_is_free: boolean
+          p_odds: number
+          p_outcome: string
+          p_stake: number
+        }
+        Returns: number
+      }
+      settle_leg_with_ledger: {
+        Args: { p_leg_id: string; p_outcome: string; p_settled_at?: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
