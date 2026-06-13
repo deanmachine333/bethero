@@ -82,8 +82,8 @@ function PairsPage() {
               {pairs.map((p) => {
                 const isOpen = !!open[p.id];
                 return (
-                  <>
-                    <TableRow key={p.id} className="cursor-pointer" onClick={() => setOpen({ ...open, [p.id]: !isOpen })}>
+                  <PairRows key={p.id} p={p} isOpen={isOpen} onToggle={() => setOpen({ ...open, [p.id]: !isOpen })} bookieMap={bookieMap} />
+                );
                       <TableCell>
                         <Button size="icon" variant="ghost" className="h-7 w-7">
                           {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
