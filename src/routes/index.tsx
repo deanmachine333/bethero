@@ -1,9 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   fetchBets,
   fetchBookies,
@@ -23,6 +34,8 @@ export const Route = createFileRoute("/")({
   component: Dashboard,
 });
 
+
+
 function Dashboard() {
   const bookiesQ = useQuery({ queryKey: ["bookies"], queryFn: fetchBookies });
   const betsQ = useQuery({ queryKey: ["bets"], queryFn: fetchBets });
@@ -34,16 +47,45 @@ function Dashboard() {
   const transfers = transfersQ.data ?? [];
   const withBal = deriveBookieBalances(bookies, bets, transfers);
 
-  // totals per currency
-  const totals = new Map<string, { pl: number; turnover: number; open: number }>();
-  for (const b of bets) {
+  // Bet-type filter for KPIs + cumulative chart
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const filteredBets = useMemo(
+    () => (typeFilter === "all" ? bets : bets.filter((b) => (b.type || "").toUpperCase() === typeFilter)),
+    [bets, typeFilter],
+  );
+
+  // totals per currency (filtered)
+  const totals = new Map<string, { pl: number; turnover: number; open: number; projected: number }>();
+  for (const b of filteredBets) {
     const c = b.currency || "GBP";
-    const t = totals.get(c) ?? { pl: 0, turnover: 0, open: 0 };
+    const t = totals.get(c) ?? { pl: 0, turnover: 0, open: 0, projected: 0 };
     if (b.outcome !== "open") t.pl += betProfit(b);
     t.turnover += Number(b.stake);
-    if (b.outcome === "open") t.open += b.is_free_bet ? 0 : Number(b.stake);
+    if (b.outcome === "open") {
+      t.open += b.is_free_bet ? 0 : Number(b.stake);
+      // Projected if open bets all win: expected return - stake
+      const expReturn = b.is_free_bet
+        ? Number(b.stake) * (Number(b.odds) - 1)
+        : Number(b.stake) * Number(b.odds);
+      const cost = b.is_free_bet ? 0 : Number(b.stake);
+      t.projected += expReturn - cost;
+    }
     totals.set(c, t);
   }
+
+  // Cumulative settled P/L over time (primary currency = first key, else GBP)
+  const primaryCur = [...totals.keys()][0] ?? "GBP";
+  const cumulative = useMemo(() => {
+    const settled = filteredBets
+      .filter((b) => b.outcome !== "open" && (b.currency || "GBP") === primaryCur)
+      .map((b) => ({ d: new Date(b.date_placed).getTime(), pl: betProfit(b) }))
+      .sort((a, b) => a.d - b.d);
+    let acc = 0;
+    return settled.map((s) => {
+      acc += s.pl;
+      return { date: new Date(s.d).toISOString().slice(0, 10), pl: Number(acc.toFixed(2)) };
+    });
+  }, [filteredBets, primaryCur]);
 
   // alerts
   // Alert only when the user has actually set a threshold (>0) AND available cash falls below it.
@@ -86,6 +128,22 @@ function Dashboard() {
         </Card>
       )}
 
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-sm font-medium text-muted-foreground">
+          Performance {typeFilter !== "all" && <Badge variant="outline">{typeFilter}</Badge>}
+        </h2>
+        <ToggleGroup
+          type="single"
+          value={typeFilter}
+          onValueChange={(v) => v && setTypeFilter(v)}
+          size="sm"
+        >
+          <ToggleGroupItem value="all">All</ToggleGroupItem>
+          <ToggleGroupItem value="EV+">EV+</ToggleGroupItem>
+          <ToggleGroupItem value="ARB">Arb</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         {[...totals.entries()].map(([cur, t]) => (
           <Card key={cur}>
@@ -103,10 +161,43 @@ function Dashboard() {
               <p className="text-xs text-muted-foreground mt-1">
                 Turnover {fmtMoney(t.turnover, cur)} · Open risk {fmtMoney(t.open, cur)}
               </p>
+              <p className="text-xs text-muted-foreground">
+                Projected if open wins: {fmtMoney(t.pl + t.projected, cur)}
+              </p>
             </CardContent>
           </Card>
         ))}
       </section>
+
+      {cumulative.length > 1 && (
+        <Card className="mb-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">
+              Cumulative settled P/L ({primaryCur})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={cumulative} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="plFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.4} />
+                    <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="date" tick={{ fontSize: 11 }} minTickGap={32} />
+                <YAxis tick={{ fontSize: 11 }} width={60} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }}
+                  formatter={(v: number) => fmtMoney(v, primaryCur)}
+                />
+                <Area type="monotone" dataKey="pl" stroke="hsl(var(--primary))" fill="url(#plFill)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       <section className="grid gap-4 lg:grid-cols-3">
         <AlertCard
