@@ -54,7 +54,8 @@ export async function fetchAudit(): Promise<AuditRow[]> {
 }
 
 export interface BookieWithBalance extends Bookie {
-  computed_balance: number;
+  computed_balance: number; // cash position (settled only)
+  available_balance: number; // cash minus in-play stakes
   open_risk: number;
 }
 
@@ -77,14 +78,19 @@ export function deriveBookieBalances(
           (t.status === "withdrawn" || t.status === "bank_cleared" || t.status === "deposited"),
       )
       .reduce((a, t) => a + Number(t.amount), 0);
-    const balance = bookieBalance({
+    const input = {
       opening_balance: Number(b.opening_balance),
       deposits,
       withdrawals,
       settled_returns: returnSum(settled),
       settled_stakes: effectiveStakeSum(settled),
       open_stakes: effectiveStakeSum(open),
-    });
-    return { ...b, computed_balance: balance, open_risk: effectiveStakeSum(open) };
+    };
+    return {
+      ...b,
+      computed_balance: bookieBalance(input),
+      available_balance: availableBalance(input),
+      open_risk: input.open_stakes,
+    };
   });
 }
