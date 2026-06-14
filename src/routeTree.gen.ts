@@ -18,6 +18,7 @@ import { Route as AuthenticatedHistoryRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedBetsRouteImport } from './routes/_authenticated/bets'
 import { Route as AuthenticatedAnalyticsRouteImport } from './routes/_authenticated/analytics'
 import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
+import { Route as AuthenticatedTransfersImportRouteImport } from './routes/_authenticated/transfers.import'
 import { Route as AuthenticatedBetsImportRouteImport } from './routes/_authenticated/bets.import'
 
 const AuthRoute = AuthRouteImport.update({
@@ -64,6 +65,12 @@ const AuthenticatedAccountsRoute = AuthenticatedAccountsRouteImport.update({
   path: '/accounts',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedTransfersImportRoute =
+  AuthenticatedTransfersImportRouteImport.update({
+    id: '/import',
+    path: '/import',
+    getParentRoute: () => AuthenticatedTransfersRoute,
+  } as any)
 const AuthenticatedBetsImportRoute = AuthenticatedBetsImportRouteImport.update({
   id: '/import',
   path: '/import',
@@ -78,8 +85,9 @@ export interface FileRoutesByFullPath {
   '/bets': typeof AuthenticatedBetsRouteWithChildren
   '/history': typeof AuthenticatedHistoryRoute
   '/setup': typeof AuthenticatedSetupRoute
-  '/transfers': typeof AuthenticatedTransfersRoute
+  '/transfers': typeof AuthenticatedTransfersRouteWithChildren
   '/bets/import': typeof AuthenticatedBetsImportRoute
+  '/transfers/import': typeof AuthenticatedTransfersImportRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -88,9 +96,10 @@ export interface FileRoutesByTo {
   '/bets': typeof AuthenticatedBetsRouteWithChildren
   '/history': typeof AuthenticatedHistoryRoute
   '/setup': typeof AuthenticatedSetupRoute
-  '/transfers': typeof AuthenticatedTransfersRoute
+  '/transfers': typeof AuthenticatedTransfersRouteWithChildren
   '/': typeof AuthenticatedIndexRoute
   '/bets/import': typeof AuthenticatedBetsImportRoute
+  '/transfers/import': typeof AuthenticatedTransfersImportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -101,9 +110,10 @@ export interface FileRoutesById {
   '/_authenticated/bets': typeof AuthenticatedBetsRouteWithChildren
   '/_authenticated/history': typeof AuthenticatedHistoryRoute
   '/_authenticated/setup': typeof AuthenticatedSetupRoute
-  '/_authenticated/transfers': typeof AuthenticatedTransfersRoute
+  '/_authenticated/transfers': typeof AuthenticatedTransfersRouteWithChildren
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/bets/import': typeof AuthenticatedBetsImportRoute
+  '/_authenticated/transfers/import': typeof AuthenticatedTransfersImportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -117,6 +127,7 @@ export interface FileRouteTypes {
     | '/setup'
     | '/transfers'
     | '/bets/import'
+    | '/transfers/import'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -128,6 +139,7 @@ export interface FileRouteTypes {
     | '/transfers'
     | '/'
     | '/bets/import'
+    | '/transfers/import'
   id:
     | '__root__'
     | '/_authenticated'
@@ -140,6 +152,7 @@ export interface FileRouteTypes {
     | '/_authenticated/transfers'
     | '/_authenticated/'
     | '/_authenticated/bets/import'
+    | '/_authenticated/transfers/import'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -212,6 +225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAccountsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/transfers/import': {
+      id: '/_authenticated/transfers/import'
+      path: '/import'
+      fullPath: '/transfers/import'
+      preLoaderRoute: typeof AuthenticatedTransfersImportRouteImport
+      parentRoute: typeof AuthenticatedTransfersRoute
+    }
     '/_authenticated/bets/import': {
       id: '/_authenticated/bets/import'
       path: '/import'
@@ -233,13 +253,27 @@ const AuthenticatedBetsRouteChildren: AuthenticatedBetsRouteChildren = {
 const AuthenticatedBetsRouteWithChildren =
   AuthenticatedBetsRoute._addFileChildren(AuthenticatedBetsRouteChildren)
 
+interface AuthenticatedTransfersRouteChildren {
+  AuthenticatedTransfersImportRoute: typeof AuthenticatedTransfersImportRoute
+}
+
+const AuthenticatedTransfersRouteChildren: AuthenticatedTransfersRouteChildren =
+  {
+    AuthenticatedTransfersImportRoute: AuthenticatedTransfersImportRoute,
+  }
+
+const AuthenticatedTransfersRouteWithChildren =
+  AuthenticatedTransfersRoute._addFileChildren(
+    AuthenticatedTransfersRouteChildren,
+  )
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
   AuthenticatedAnalyticsRoute: typeof AuthenticatedAnalyticsRoute
   AuthenticatedBetsRoute: typeof AuthenticatedBetsRouteWithChildren
   AuthenticatedHistoryRoute: typeof AuthenticatedHistoryRoute
   AuthenticatedSetupRoute: typeof AuthenticatedSetupRoute
-  AuthenticatedTransfersRoute: typeof AuthenticatedTransfersRoute
+  AuthenticatedTransfersRoute: typeof AuthenticatedTransfersRouteWithChildren
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
@@ -249,7 +283,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBetsRoute: AuthenticatedBetsRouteWithChildren,
   AuthenticatedHistoryRoute: AuthenticatedHistoryRoute,
   AuthenticatedSetupRoute: AuthenticatedSetupRoute,
-  AuthenticatedTransfersRoute: AuthenticatedTransfersRoute,
+  AuthenticatedTransfersRoute: AuthenticatedTransfersRouteWithChildren,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 
