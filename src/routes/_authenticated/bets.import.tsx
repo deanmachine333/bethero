@@ -18,14 +18,29 @@ import {
 import { AlertTriangle, Upload, CheckCircle2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { parseBetheroCsv, rowsToBetPayload, type ParsedRow } from "@/lib/csv";
-import { fetchAccounts, importBetsBatch } from "@/lib/ledger-queries";
+import {
+  fetchAccounts,
+  findBetsByExternalRefs,
+  importBetsBatch,
+  reimportBet,
+} from "@/lib/ledger-queries";
+import type { Bet, BetLeg } from "@/lib/ledger";
 
 export const Route = createFileRoute("/_authenticated/bets/import")({
   head: () => ({ meta: [{ title: "Import — BetHero" }] }),
   component: ImportPage,
 });
 
-type Step = "upload" | "review" | "done";
+type Step = "upload" | "review" | "conflicts" | "done";
+
+type Conflict = {
+  externalRef: string;
+  bet: Bet;
+  legs: BetLeg[];
+  incoming: ReturnType<typeof rowsToBetPayload>[number];
+  /** "keep" preserves local, "replace" overwrites everything from CSV. */
+  resolution: "keep" | "replace";
+};
 
 function ImportPage() {
   const qc = useQueryClient();
