@@ -224,6 +224,15 @@ function BetsPage() {
           <div className="py-10 text-center text-sm text-muted-foreground">No bets.</div>
         )}
       </div>
+      {openBet && (
+        <BetDetailDialog
+          open={!!openBet}
+          onOpenChange={(o) => !o && setOpenBet(null)}
+          bet={openBet}
+          legs={legs.filter((l) => l.bet_id === openBet.id) as BetLeg[]}
+          accounts={accounts}
+        />
+      )}
     </AppShell>
   );
 }
