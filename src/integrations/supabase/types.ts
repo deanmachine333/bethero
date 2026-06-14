@@ -59,6 +59,36 @@ export type Database = {
         }
         Relationships: []
       }
+      bet_import_log: {
+        Row: {
+          action: string
+          bet_id: string | null
+          created_at: string
+          diff: Json
+          external_ref: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          bet_id?: string | null
+          created_at?: string
+          diff?: Json
+          external_ref?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          bet_id?: string | null
+          created_at?: string
+          diff?: Json
+          external_ref?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       bet_legs: {
         Row: {
           account_id: string
@@ -67,7 +97,9 @@ export type Database = {
           free_bet_type: string | null
           id: string
           is_free_bet: boolean
+          last_manual_edit_at: string | null
           leg_number: number
+          manually_overridden_fields: string[]
           market: string | null
           odds: number
           outcome: string
@@ -85,7 +117,9 @@ export type Database = {
           free_bet_type?: string | null
           id?: string
           is_free_bet?: boolean
+          last_manual_edit_at?: string | null
           leg_number?: number
+          manually_overridden_fields?: string[]
           market?: string | null
           odds?: number
           outcome?: string
@@ -103,7 +137,9 @@ export type Database = {
           free_bet_type?: string | null
           id?: string
           is_free_bet?: boolean
+          last_manual_edit_at?: string | null
           leg_number?: number
+          manually_overridden_fields?: string[]
           market?: string | null
           odds?: number
           outcome?: string
@@ -143,7 +179,11 @@ export type Database = {
           external_ref: string | null
           fair_odds: number | null
           id: string
+          imported_at: string | null
+          is_archived: boolean
+          last_manual_edit_at: string | null
           league: string | null
+          manually_overridden_fields: string[]
           market: string | null
           notes: string | null
           source: string
@@ -164,7 +204,11 @@ export type Database = {
           external_ref?: string | null
           fair_odds?: number | null
           id?: string
+          imported_at?: string | null
+          is_archived?: boolean
+          last_manual_edit_at?: string | null
           league?: string | null
+          manually_overridden_fields?: string[]
           market?: string | null
           notes?: string | null
           source?: string
@@ -185,7 +229,11 @@ export type Database = {
           external_ref?: string | null
           fair_odds?: number | null
           id?: string
+          imported_at?: string | null
+          is_archived?: boolean
+          last_manual_edit_at?: string | null
           league?: string | null
+          manually_overridden_fields?: string[]
           market?: string | null
           notes?: string | null
           source?: string
@@ -278,11 +326,46 @@ export type Database = {
         }
         Relationships: []
       }
+      transfer_imports: {
+        Row: {
+          created_at: string
+          id: string
+          import_key: string
+          notes: string | null
+          source: string
+          transfer_group_id: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          import_key: string
+          notes?: string | null
+          source?: string
+          transfer_group_id?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          import_key?: string
+          notes?: string | null
+          source?: string
+          transfer_group_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      apply_leg_ledger: {
+        Args: { p_leg_id: string; p_memo?: string; p_occurred_at: string }
+        Returns: undefined
+      }
+      archive_bet: { Args: { p_bet_id: string }; Returns: undefined }
       create_bet_with_ledger: {
         Args: {
           p_bet_type: string
@@ -306,6 +389,7 @@ export type Database = {
         Returns: string
       }
       import_bets_batch: { Args: { p_rows: Json }; Returns: Json }
+      import_transfers_batch: { Args: { p_rows: Json }; Returns: Json }
       leg_return: {
         Args: {
           p_free_type: string
@@ -315,6 +399,22 @@ export type Database = {
           p_stake: number
         }
         Returns: number
+      }
+      reimport_bet: {
+        Args: {
+          p_bet_id: string
+          p_incoming: Json
+          p_overwrite_fields?: string[]
+        }
+        Returns: string
+      }
+      reverse_leg_ledger: {
+        Args: { p_leg_id: string; p_memo?: string }
+        Returns: undefined
+      }
+      reverse_transfer_group: {
+        Args: { p_group_id: string }
+        Returns: undefined
       }
       settle_leg_with_ledger: {
         Args: { p_leg_id: string; p_outcome: string; p_settled_at?: string }
@@ -329,6 +429,32 @@ export type Database = {
           p_to: string
           p_when?: string
         }
+        Returns: string
+      }
+      update_account_with_correction: {
+        Args: {
+          p_currency?: string
+          p_id: string
+          p_is_active?: boolean
+          p_memo?: string
+          p_min_threshold?: number
+          p_name?: string
+          p_notes?: string
+          p_target_balance?: number
+        }
+        Returns: string
+      }
+      update_bet_with_ledger: {
+        Args: {
+          p_bet: Json
+          p_bet_id: string
+          p_legs: Json
+          p_mark_manual?: boolean
+        }
+        Returns: string
+      }
+      update_transfer_group: {
+        Args: { p_group_id: string; p_memo?: string; p_when?: string }
         Returns: string
       }
     }
