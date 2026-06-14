@@ -462,6 +462,103 @@ function ImportPage() {
         </>
       )}
 
+      {step === "conflicts" && (
+        <>
+          <Card className="mb-4">
+            <CardContent className="p-4">
+              <div className="mb-2 text-sm font-medium">
+                {conflicts.length} matching bet{conflicts.length === 1 ? "" : "s"} already exist
+              </div>
+              <div className="text-xs text-muted-foreground mb-3">
+                These bets share an import key with existing bets. Manually-edited bets default
+                to <strong>Keep local</strong>; others default to <strong>Replace from CSV</strong>.
+                Replacing reconciles ledger entries — old stake/settlement effects are reversed and
+                rewritten from the CSV values, so balances stay correct.
+              </div>
+              <ul className="divide-y rounded border">
+                {conflicts.map((c) => {
+                  const incLegs = (c.incoming as { legs?: Array<Record<string, unknown>> }).legs ?? [];
+                  return (
+                    <li key={c.externalRef} className="grid grid-cols-[1fr_auto] gap-3 p-3 text-xs">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{c.bet.event}</div>
+                        <div className="text-muted-foreground">{c.bet.market}</div>
+                        <div className="mt-1 grid grid-cols-2 gap-2 text-[10px]">
+                          <div className="rounded bg-muted/40 p-1">
+                            <div className="font-semibold">Local</div>
+                            {c.legs.map((l) => (
+                              <div key={l.id} className="font-mono">
+                                £{Number(l.stake)} @ {Number(l.odds)} · {l.outcome}
+                                {l.is_free_bet && " · FREE"}
+                              </div>
+                            ))}
+                            {c.bet.last_manual_edit_at && (
+                              <Badge variant="secondary" className="mt-1 h-4 text-[9px]">edited</Badge>
+                            )}
+                          </div>
+                          <div className="rounded bg-muted/40 p-1">
+                            <div className="font-semibold">CSV</div>
+                            {incLegs.map((l, i) => (
+                              <div key={i} className="font-mono">
+                                £{Number(l.stake)} @ {Number(l.odds)} · {String(l.outcome ?? "open")}
+                                {l.is_free_bet ? " · FREE" : ""}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          size="sm"
+                          variant={c.resolution === "keep" ? "default" : "outline"}
+                          onClick={() =>
+                            setConflicts((curr) =>
+                              curr.map((x) =>
+                                x.externalRef === c.externalRef ? { ...x, resolution: "keep" } : x,
+                              ),
+                            )
+                          }
+                        >
+                          Keep local
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={c.resolution === "replace" ? "default" : "outline"}
+                          onClick={() =>
+                            setConflicts((curr) =>
+                              curr.map((x) =>
+                                x.externalRef === c.externalRef ? { ...x, resolution: "replace" } : x,
+                              ),
+                            )
+                          }
+                        >
+                          Replace
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </CardContent>
+          </Card>
+          <div className="sticky bottom-2 flex items-center justify-between gap-3 rounded-lg border bg-background p-3 shadow-sm">
+            <div className="text-sm text-muted-foreground">
+              {conflicts.filter((c) => c.resolution === "replace").length} will be replaced ·{" "}
+              {conflicts.filter((c) => c.resolution === "keep").length} kept as-is
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep("review")}>Back</Button>
+              <Button
+                disabled={importMut.isPending}
+                onClick={() => importMut.mutate()}
+              >
+                {importMut.isPending ? "Importing…" : "Confirm import"}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+
       {step === "done" && result && (
         <Card>
           <CardContent className="p-8 text-center">
