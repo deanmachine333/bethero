@@ -39,12 +39,16 @@ export const Route = createFileRoute("/_authenticated/transfers")({
 });
 
 function TransfersPage() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: fetchAccounts });
   const ledgerQ = useQuery({ queryKey: ["ledger"], queryFn: fetchLedger });
   const accounts = accountsQ.data ?? [];
   const entries = ledgerQ.data ?? [];
   const bank = accounts.find((a) => a.kind === "bank");
   const bookies = accounts.filter((a) => a.kind === "bookie");
+  const [editGroup, setEditGroup] = useState<{ groupId: string; entries: typeof entries } | null>(null);
+
+  if (pathname !== "/transfers") return <Outlet />;
 
   // history
   const groups = new Map<string, typeof entries>();
