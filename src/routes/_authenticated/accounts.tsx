@@ -8,7 +8,14 @@ import {
   fetchLedger,
   createAccount,
 } from "@/lib/ledger-queries";
-import { accountBalance, accountOpenExposure, accountRealisedPL, fmtMoney } from "@/lib/ledger";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  accountBalance,
+  accountOpenExposure,
+  accountRealisedPL,
+  fmtMoney,
+  type Account,
+} from "@/lib/ledger";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, AlertTriangle, Banknote, Wallet } from "lucide-react";
+import { Plus, AlertTriangle, Banknote, Wallet, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/accounts")({
@@ -58,7 +65,7 @@ function AccountsPage() {
           const pl = accountRealisedPL(entries, legs, a.id);
           const low = Number(a.min_threshold) > 0 && available < Number(a.min_threshold);
           return (
-            <Card key={a.id}>
+            <Card key={a.id} className={a.is_active ? "" : "opacity-60"}>
               <CardContent className="p-4">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
@@ -68,13 +75,18 @@ function AccountsPage() {
                       <Wallet className="h-4 w-4" />
                     )}
                     <div>
-                      <div className="font-semibold">{a.name}</div>
+                      <div className="font-semibold">
+                        {a.name} {!a.is_active && <span className="text-xs text-muted-foreground">(archived)</span>}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {a.kind} · {a.currency}
                       </div>
                     </div>
                   </div>
-                  {low && <AlertTriangle className="h-4 w-4 text-[var(--loss)]" />}
+                  <div className="flex items-center gap-1">
+                    {low && <AlertTriangle className="h-4 w-4 text-[var(--loss)]" />}
+                    <EditAccountDialog account={a} currentBalance={bal} />
+                  </div>
                 </div>
                 <div className="mt-3 text-2xl font-semibold tabular-nums">
                   {fmtMoney(bal, a.currency)}
@@ -197,6 +209,147 @@ function AccountDialog() {
         <DialogFooter>
           <Button onClick={() => save.mutate()} disabled={save.isPending || !form.name}>
             {save.isPending ? "…" : "Save"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditAccountDialog({ account, currentBalance }: { account: Account; currentBalance: number }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(account.name);
+  const [currency, setCurrency] = useState(account.currency);
+  const [minThreshold, setMinThreshold] = useState(String(account.min_threshold ?? 0));
+  const [isActive, setIsActive] = useState(account.is_active);
+  const [targetBalance, setTargetBalance] = useState(String(currentBalance.toFixed(2)));
+  const [adjustMemo, setAdjustMemo] = useState("");
+
+  const save = useMutation({
+    mutationFn: async () => {
+      // 1. Update account metadata
+      const { error: upErr } = await supabase
+        .from("accounts")
+        .update({
+          name: name.trim(),
+          currency: currency.trim().toUpperCase() || "GBP",
+          min_threshold: Number(minThreshold) || 0,
+          is_active: isActive,
+        })
+        .eq("id", account.id);
+      if (upErr) throw upErr;
+
+      // 2. Balance adjustment if changed
+      const target = Number(targetBalance);
+      const delta = target - currentBalance;
+      if (Number.isFinite(target) && Math.abs(delta) > 0.005) {
+        if (!adjustMemo.trim()) {
+          throw new Error("Memo required when adjusting balance");
+        }
+        const { data: u } = await supabase.auth.getUser();
+        if (!u.user) throw new Error("not signed in");
+        const { error: lErr } = await supabase.from("ledger_entries").insert({
+          user_id: u.user.id,
+          account_id: account.id,
+          amount: delta,
+          entry_type: "adjustment",
+          memo: adjustMemo.trim(),
+        });
+        if (lErr) throw lErr;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["ledger"] });
+      toast.success("Account updated");
+      setOpen(false);
+      setAdjustMemo("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const target = Number(targetBalance);
+  const delta = Number.isFinite(target) ? target - currentBalance : 0;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => {
+      setOpen(v);
+      if (v) {
+        setName(account.name);
+        setCurrency(account.currency);
+        setMinThreshold(String(account.min_threshold ?? 0));
+        setIsActive(account.is_active);
+        setTargetBalance(currentBalance.toFixed(2));
+        setAdjustMemo("");
+      }
+    }}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-7 w-7">
+          <Pencil className="h-3.5 w-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit {account.name}</DialogTitle>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <Label className="text-xs">Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">Currency</Label>
+            <Input value={currency} onChange={(e) => setCurrency(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">Min threshold</Label>
+            <Input value={minThreshold} onChange={(e) => setMinThreshold(e.target.value)} />
+          </div>
+          <div className="col-span-2 flex items-center gap-2">
+            <input
+              id={`active-${account.id}`}
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+            />
+            <Label htmlFor={`active-${account.id}`} className="text-xs">
+              Active (uncheck to archive)
+            </Label>
+          </div>
+
+          <div className="col-span-2 mt-2 rounded-md border p-3">
+            <div className="mb-2 text-sm font-medium">Adjust balance</div>
+            <div className="mb-2 text-xs text-muted-foreground">
+              Current balance: <span className="font-mono">{fmtMoney(currentBalance, account.currency)}</span>.
+              Setting a new target writes a single ledger adjustment for the difference — history stays intact.
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">New balance</Label>
+                <Input value={targetBalance} onChange={(e) => setTargetBalance(e.target.value)} />
+              </div>
+              <div>
+                <Label className="text-xs">Delta</Label>
+                <div className={`mt-2 font-mono text-sm ${delta >= 0 ? "text-[var(--win)]" : "text-[var(--loss)]"}`}>
+                  {delta >= 0 ? "+" : ""}
+                  {fmtMoney(delta, account.currency)}
+                </div>
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs">Reason / memo {Math.abs(delta) > 0.005 && <span className="text-[var(--loss)]">*</span>}</Label>
+                <Input
+                  value={adjustMemo}
+                  onChange={(e) => setAdjustMemo(e.target.value)}
+                  placeholder="e.g. correcting opening balance, bonus credit, bookie correction"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => save.mutate()} disabled={save.isPending || !name.trim()}>
+            {save.isPending ? "…" : "Save changes"}
           </Button>
         </DialogFooter>
       </DialogContent>
