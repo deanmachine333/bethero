@@ -1,21 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { fetchAccounts, fetchLedger, createTransfer } from "@/lib/ledger-queries";
+import {
+  fetchAccounts,
+  fetchLedger,
+  createTransfer,
+  transferBookieToBookie,
+} from "@/lib/ledger-queries";
 import { accountBalance, fmtMoney } from "@/lib/ledger";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -23,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, ArrowRight } from "lucide-react";
+import { ArrowRight, Banknote } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/transfers")({
@@ -31,16 +29,15 @@ export const Route = createFileRoute("/_authenticated/transfers")({
   component: TransfersPage,
 });
 
-const BANK = "__bank__";
-const EXTERNAL = "__external__";
-
 function TransfersPage() {
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: fetchAccounts });
   const ledgerQ = useQuery({ queryKey: ["ledger"], queryFn: fetchLedger });
   const accounts = accountsQ.data ?? [];
   const entries = ledgerQ.data ?? [];
+  const bank = accounts.find((a) => a.kind === "bank");
+  const bookies = accounts.filter((a) => a.kind === "bookie");
 
-  // Group transfer ledger entries by transfer_group_id
+  // history
   const groups = new Map<string, typeof entries>();
   for (const e of entries) {
     if (!e.transfer_group_id) continue;
@@ -51,8 +48,6 @@ function TransfersPage() {
   const transferRows = [...groups.values()].sort(
     (a, b) => new Date(b[0].occurred_at).getTime() - new Date(a[0].occurred_at).getTime(),
   );
-
-  // Single deposits/withdrawals (no group, top-up or cash-out)
   const singles = entries
     .filter(
       (e) =>
@@ -62,31 +57,75 @@ function TransfersPage() {
 
   return (
     <AppShell title="Transfers">
-      <div className="mb-4 flex justify-end">
-        <TransferDialog accounts={accounts} entries={entries} />
-      </div>
+      <Card className="mb-4">
+        <CardContent className="p-4">
+          <Tabs defaultValue="b2b">
+            <TabsList className="mb-3">
+              <TabsTrigger value="b2b">Bookie → Bookie</TabsTrigger>
+              <TabsTrigger value="bank2bookie">Bank → Bookie</TabsTrigger>
+              <TabsTrigger value="bookie2bank">Bookie → Bank</TabsTrigger>
+              <TabsTrigger value="topup">External top-up</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="b2b">
+              <B2BForm
+                bookies={bookies}
+                bank={bank ?? null}
+                entries={entries}
+              />
+            </TabsContent>
+            <TabsContent value="bank2bookie">
+              <SimpleTransferForm
+                label="Bank → Bookie"
+                fromOptions={bank ? [bank] : []}
+                toOptions={bookies}
+                entries={entries}
+              />
+            </TabsContent>
+            <TabsContent value="bookie2bank">
+              <SimpleTransferForm
+                label="Bookie → Bank"
+                fromOptions={bookies}
+                toOptions={bank ? [bank] : []}
+                entries={entries}
+              />
+            </TabsContent>
+            <TabsContent value="topup">
+              <TopUpForm accounts={accounts} />
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-4">
-          <div className="mb-2 text-sm font-medium">Recent transfers</div>
+          <div className="mb-2 text-sm font-medium">Recent movements</div>
           {transferRows.length === 0 && singles.length === 0 && (
-            <div className="py-6 text-center text-sm text-muted-foreground">No transfers yet.</div>
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              No transfers yet.
+            </div>
           )}
           <ul className="divide-y">
             {transferRows.map((g) => {
-              const out = g.find((e) => Number(e.amount) < 0);
-              const inn = g.find((e) => Number(e.amount) > 0);
-              const fromAc = accounts.find((a) => a.id === out?.account_id);
-              const toAc = accounts.find((a) => a.id === inn?.account_id);
-              const amt = inn ? Number(inn.amount) : Math.abs(Number(out?.amount ?? 0));
+              const sorted = [...g].sort(
+                (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
+              );
+              const first = sorted[0];
+              const last = sorted[sorted.length - 1];
+              const fromAc = accounts.find((a) => a.id === first.account_id);
+              const toAc = accounts.find((a) => a.id === last.account_id);
+              const amt = Math.abs(Number(first.amount));
               return (
                 <li
                   key={g[0].transfer_group_id ?? g[0].id}
                   className="flex items-center justify-between py-2 text-sm"
                 >
                   <div className="text-muted-foreground">
-                    {g[0].occurred_at.slice(0, 10)} · {fromAc?.name ?? "—"}{" "}
+                    {first.occurred_at.slice(0, 10)} · {fromAc?.name ?? "—"}{" "}
                     <ArrowRight className="inline h-3 w-3" /> {toAc?.name ?? "—"}
+                    {sorted.length === 4 && (
+                      <span className="ml-1 text-xs">(via bank)</span>
+                    )}
                   </div>
                   <div className="font-mono">{fmtMoney(amt)}</div>
                 </li>
@@ -97,7 +136,8 @@ function TransfersPage() {
               return (
                 <li key={e.id} className="flex items-center justify-between py-2 text-sm">
                   <div className="text-muted-foreground">
-                    {e.occurred_at.slice(0, 10)} · {e.entry_type === "deposit" ? "External in" : "External out"} ·{" "}
+                    {e.occurred_at.slice(0, 10)} ·{" "}
+                    {e.entry_type === "deposit" ? "External in" : "External out"} ·{" "}
                     {ac?.name}
                   </div>
                   <div
@@ -118,115 +158,307 @@ function TransfersPage() {
   );
 }
 
-function TransferDialog({
-  accounts,
+function B2BForm({
+  bookies,
+  bank,
   entries,
 }: {
-  accounts: ReturnType<typeof Array.prototype.slice> extends never[] ? never : any;
-  entries: any;
+  bookies: { id: string; name: string; currency: string }[];
+  bank: { id: string; name: string; currency: string } | null;
+  entries: { account_id: string; amount: number | string }[];
 }) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const bank = (accounts as any[]).find((a) => a.kind === "bank");
-  const [from, setFrom] = useState<string>("");
-  const [to, setTo] = useState<string>("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
 
   const save = useMutation({
-    mutationFn: () => {
-      const f = from === EXTERNAL ? null : from === BANK ? bank?.id ?? null : from || null;
-      const t = to === EXTERNAL ? null : to === BANK ? bank?.id ?? null : to || null;
-      return createTransfer(f, t, Number(amount), undefined, memo || undefined);
-    },
+    mutationFn: () =>
+      transferBookieToBookie(
+        from,
+        to,
+        bank!.id,
+        Number(amount),
+        undefined,
+        memo || undefined,
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ledger"] });
       toast.success("Transfer recorded");
-      setOpen(false);
       setAmount("");
       setMemo("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const options = (accounts as any[]).map((a) => ({ value: a.id, label: a.name }));
+  if (!bank) {
+    return (
+      <div className="rounded border border-dashed p-4 text-sm text-muted-foreground">
+        Add a bank/transit account first — bookie ↔ bookie transfers route through it.
+      </div>
+    );
+  }
+
+  const fromBal = from
+    ? entries
+        .filter((e) => e.account_id === from)
+        .reduce((a, e) => a + Number(e.amount), 0)
+    : 0;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" /> New transfer
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Record transfer</DialogTitle>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-xs">From</Label>
-            <Select value={from} onValueChange={setFrom}>
-              <SelectTrigger>
-                <SelectValue placeholder="Source" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={EXTERNAL}>🌍 External (top-up)</SelectItem>
-                {bank && <SelectItem value={BANK}>🏦 {bank.name}</SelectItem>}
-                {options
-                  .filter((o) => o.value !== bank?.id)
-                  .map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <Label className="text-xs">From bookie</Label>
+        <Select value={from} onValueChange={setFrom}>
+          <SelectTrigger>
+            <SelectValue placeholder="Source bookie" />
+          </SelectTrigger>
+          <SelectContent>
+            {bookies.map((b) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {from && (
+          <div className="mt-1 text-xs text-muted-foreground">
+            Balance: {fmtMoney(fromBal)}
           </div>
-          <div>
-            <Label className="text-xs">To</Label>
-            <Select value={to} onValueChange={setTo}>
-              <SelectTrigger>
-                <SelectValue placeholder="Destination" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={EXTERNAL}>🌍 External (cash-out)</SelectItem>
-                {bank && <SelectItem value={BANK}>🏦 {bank.name}</SelectItem>}
-                {options
-                  .filter((o) => o.value !== bank?.id)
-                  .map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="col-span-2">
-            <Label className="text-xs">Amount</Label>
-            <Input
-              type="number"
-              step="0.01"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-          <div className="col-span-2">
-            <Label className="text-xs">Memo</Label>
-            <Input value={memo} onChange={(e) => setMemo(e.target.value)} />
-          </div>
+        )}
+      </div>
+      <div>
+        <Label className="text-xs">To bookie</Label>
+        <Select value={to} onValueChange={setTo}>
+          <SelectTrigger>
+            <SelectValue placeholder="Destination bookie" />
+          </SelectTrigger>
+          <SelectContent>
+            {bookies
+              .filter((b) => b.id !== from)
+              .map((b) => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.name}
+                </SelectItem>
+              ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label className="text-xs">Amount</Label>
+        <Input
+          type="number"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </div>
+      <div>
+        <Label className="text-xs">Memo</Label>
+        <Input value={memo} onChange={(e) => setMemo(e.target.value)} />
+      </div>
+      <div className="col-span-2 rounded border bg-muted/30 p-2 text-xs">
+        <div className="mb-1 flex items-center gap-1 font-medium">
+          <Banknote className="h-3 w-3" /> Movement
         </div>
-        <p className="text-xs text-muted-foreground">
-          Bookie ↔ bookie transfers should be entered as two transfers via the bank.
-        </p>
-        <DialogFooter>
-          <Button
-            onClick={() => save.mutate()}
-            disabled={save.isPending || !amount || (!from && !to)}
-          >
-            {save.isPending ? "…" : "Save"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        {from && to && amount ? (
+          <div className="font-mono text-muted-foreground">
+            {bookies.find((b) => b.id === from)?.name} −{fmtMoney(Number(amount))} →{" "}
+            {bank.name} +{fmtMoney(Number(amount))} → {bank.name} −{fmtMoney(Number(amount))} →{" "}
+            {bookies.find((b) => b.id === to)?.name} +{fmtMoney(Number(amount))}
+          </div>
+        ) : (
+          <div className="text-muted-foreground">Pick both bookies and an amount.</div>
+        )}
+      </div>
+      <div className="col-span-2 flex justify-end">
+        <Button
+          disabled={save.isPending || !from || !to || !amount || Number(amount) <= 0}
+          onClick={() => save.mutate()}
+        >
+          {save.isPending ? "…" : "Record transfer"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SimpleTransferForm({
+  label,
+  fromOptions,
+  toOptions,
+  entries,
+}: {
+  label: string;
+  fromOptions: { id: string; name: string }[];
+  toOptions: { id: string; name: string }[];
+  entries: { account_id: string; amount: number | string }[];
+}) {
+  const qc = useQueryClient();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [amount, setAmount] = useState("");
+  const [memo, setMemo] = useState("");
+
+  const save = useMutation({
+    mutationFn: () => createTransfer(from, to, Number(amount), undefined, memo || undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ledger"] });
+      toast.success("Transfer recorded");
+      setAmount("");
+      setMemo("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const fromBal = useMemo(
+    () =>
+      from
+        ? entries
+            .filter((e) => e.account_id === from)
+            .reduce((a, e) => a + Number(e.amount), 0)
+        : 0,
+    [from, entries],
+  );
+
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <Label className="text-xs">From</Label>
+        <Select value={from} onValueChange={setFrom}>
+          <SelectTrigger>
+            <SelectValue placeholder={label.split(" → ")[0]} />
+          </SelectTrigger>
+          <SelectContent>
+            {fromOptions.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {from && (
+          <div className="mt-1 text-xs text-muted-foreground">
+            Balance: {fmtMoney(fromBal)}
+          </div>
+        )}
+      </div>
+      <div>
+        <Label className="text-xs">To</Label>
+        <Select value={to} onValueChange={setTo}>
+          <SelectTrigger>
+            <SelectValue placeholder={label.split(" → ")[1]} />
+          </SelectTrigger>
+          <SelectContent>
+            {toOptions.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label className="text-xs">Amount</Label>
+        <Input
+          type="number"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </div>
+      <div>
+        <Label className="text-xs">Memo</Label>
+        <Input value={memo} onChange={(e) => setMemo(e.target.value)} />
+      </div>
+      <div className="col-span-2 flex justify-end">
+        <Button
+          disabled={save.isPending || !from || !to || !amount || Number(amount) <= 0}
+          onClick={() => save.mutate()}
+        >
+          {save.isPending ? "…" : "Record transfer"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function TopUpForm({
+  accounts,
+}: {
+  accounts: { id: string; name: string; kind: string }[];
+}) {
+  const qc = useQueryClient();
+  const [direction, setDirection] = useState<"in" | "out">("in");
+  const [account, setAccount] = useState("");
+  const [amount, setAmount] = useState("");
+  const [memo, setMemo] = useState("");
+
+  const save = useMutation({
+    mutationFn: () =>
+      direction === "in"
+        ? createTransfer(null, account, Number(amount), undefined, memo || undefined)
+        : createTransfer(account, null, Number(amount), undefined, memo || undefined),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ledger"] });
+      toast.success("Recorded");
+      setAmount("");
+      setMemo("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <Label className="text-xs">Direction</Label>
+        <Select value={direction} onValueChange={(v) => setDirection(v as "in" | "out")}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="in">External money IN (top-up)</SelectItem>
+            <SelectItem value="out">External money OUT (cash out)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label className="text-xs">Account</Label>
+        <Select value={account} onValueChange={setAccount}>
+          <SelectTrigger>
+            <SelectValue placeholder="Pick account" />
+          </SelectTrigger>
+          <SelectContent>
+            {accounts.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.name} ({a.kind})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label className="text-xs">Amount</Label>
+        <Input
+          type="number"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+        />
+      </div>
+      <div>
+        <Label className="text-xs">Memo</Label>
+        <Input value={memo} onChange={(e) => setMemo(e.target.value)} />
+      </div>
+      <div className="col-span-2 flex justify-end">
+        <Button
+          disabled={save.isPending || !account || !amount || Number(amount) <= 0}
+          onClick={() => save.mutate()}
+        >
+          {save.isPending ? "…" : "Record"}
+        </Button>
+      </div>
+    </div>
   );
 }

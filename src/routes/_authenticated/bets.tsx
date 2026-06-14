@@ -10,7 +10,7 @@ import {
   settleLeg,
   type NewLegInput,
 } from "@/lib/ledger-queries";
-import { fmtMoney, legProjectedProfit, legRealisedProfit } from "@/lib/ledger";
+import { betProjectedProfit, fmtMoney, legProjectedProfit, legRealisedProfit } from "@/lib/ledger";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,15 +78,16 @@ function BetsPage() {
       <div className="grid gap-2">
         {filtered.map((b) => {
           const blegs = legs.filter((l) => l.bet_id === b.id);
-          const proj = blegs.reduce((a, l) => a + legProjectedProfit(l), 0);
+          const proj = betProjectedProfit(b, blegs);
           const real = blegs.reduce((a, l) => a + legRealisedProfit(l), 0);
+          const isArb = b.bet_type === "arb";
           return (
             <Card key={b.id}>
               <CardContent className="p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <Badge variant={b.bet_type === "arb" ? "secondary" : "default"}>
+                      <Badge variant={isArb ? "secondary" : "default"}>
                         {b.bet_type.toUpperCase()}
                       </Badge>
                       <Badge variant={b.status === "open" ? "outline" : "secondary"}>
@@ -95,23 +96,60 @@ function BetsPage() {
                       <span className="text-xs text-muted-foreground">
                         {b.date_placed.slice(0, 10)}
                       </span>
+                      {b.event_time && (
+                        <span className="text-xs text-muted-foreground">
+                          · ⏰ {new Date(b.event_time).toLocaleString(undefined, {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-1 truncate font-medium">{b.event}</div>
                     <div className="text-xs text-muted-foreground">{b.market}</div>
                   </div>
                   <div className="shrink-0 text-right">
                     {b.status === "open" ? (
-                      <>
-                        <div className="text-xs text-muted-foreground">Projected</div>
-                        <div
-                          className={
-                            "font-mono " +
-                            (proj >= 0 ? "text-[var(--win)]" : "text-[var(--loss)]")
-                          }
-                        >
-                          {fmtMoney(proj)}
-                        </div>
-                      </>
+                      isArb ? (
+                        <>
+                          <div className="text-xs text-muted-foreground">Worst / Best</div>
+                          <div className="font-mono text-sm">
+                            <span
+                              className={
+                                proj.worst >= 0
+                                  ? "text-[var(--win)]"
+                                  : "text-[var(--loss)]"
+                              }
+                            >
+                              {fmtMoney(proj.worst)}
+                            </span>
+                            {" / "}
+                            <span
+                              className={
+                                proj.best >= 0
+                                  ? "text-[var(--win)]"
+                                  : "text-[var(--loss)]"
+                              }
+                            >
+                              {fmtMoney(proj.best)}
+                            </span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-xs text-muted-foreground">Projected</div>
+                          <div
+                            className={
+                              "font-mono " +
+                              (proj.expected >= 0
+                                ? "text-[var(--win)]"
+                                : "text-[var(--loss)]")
+                            }
+                          >
+                            {fmtMoney(proj.expected)}
+                          </div>
+                        </>
+                      )
                     ) : (
                       <>
                         <div className="text-xs text-muted-foreground">Realised</div>

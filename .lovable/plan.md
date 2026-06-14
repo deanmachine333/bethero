@@ -1,110 +1,80 @@
-# BetHero Refactor — Ledger-Based Bankroll Tracker
+# BetHero Refactor Plan
 
-## 1. Audit Summary (current repo)
+## 1. Audit — what's actually wrong today
 
-Reading the codebase, the core issues are:
+Looking at the current code:
 
-- **No ledger.** `bookies.opening_balance` is a stored editable number; balances are recomputed ad-hoc in `deriveBookieBalances` by mixing `opening_balance + transfers + settled returns − settled stakes − open stakes`. Any edit to `opening_balance` silently rewrites history.
-- **Transfers are a single row** (`from_bookie_id` → `to_bookie_id`) with a "status" lifecycle and a separate `bank_ledger` table that's only partially wired. Bank balance isn't a first-class account.
-- **Bets store a `return` number** that's been recomputed by ad-hoc SQL backfills. There's no link from a bet to the cash movements it caused, so reconciliation is impossible.
-- **No concept of "stake already accounted for"** — so importing today's open bets against today's live balance double-counts.
-- **Arb bets** are modelled by a free-text `pair_id` on `bets`. No enforced 2-leg structure, no per-leg free-bet flags, no linked settlement.
-- **Free bets** only have an `is_free_bet` boolean — no SNR vs SR distinction, so returns are wrong for SR free bets.
-- **No auth.** App is single-user but world-open via permissive RLS (`using: true`).
-- **CSV import** mutates bet rows directly and has had repeated status-mapping bugs because there's no single source of truth for outcome → cash effect.
-- **Dashboard/Bookies math** is duplicated across `calc.ts`, `queries.ts`, and route files.
+- **`bets.import.tsx`** is a literal placeholder ("CSV import is being rebuilt…"). No parser, no preview, no insert. This is the single biggest gap.
+- **CSV schema mismatch**: `src/lib/csv.ts` is written for an *internal* `CsvBetRow` shape (`DatePlaced, Bookie, Stake, IsFreeBet, Outcome, PairID…`). Your real BetHero export uses `SPORT, LEAGUE, EVENT, TIME, BET, BET TYPE, BOOK, STAKE, CURRENCY, ODDS, EV, CLV, FAIR ODDS, CURRENT FAIR ODDS, PROFILE, STATUS, PLACED, NOTES`. Nothing in the app understands that format.
+- **No bookie auto-create**: nothing reads `BOOK` and reconciles to `accounts`. Accounts must be hand-typed in `/setup` first.
+- **No "stake already in opening balance" flag** anywhere in schema, RPC, or UI. The `create_bet_with_ledger` RPC does already honour `stake_prefunded` (good) — but the importer never sets it, and there's no UI for it.
+- **No arb grouping**: schema supports it (`bets_v2.bet_type='arb'` + multiple `bet_legs`), but the import has no logic to pair rows, and the bets page (`bets.tsx`) doesn't render arbs as 2-leg cards or compute best/worst case.
+- **Arb projected profit is wrong on the dashboard**: `index.tsx` sums `legProjectedProfit` across all open legs — for an arb that double-counts as if both legs win. Needs scenario math per arb.
+- **Free-bet UI**: schema + `leg_return()` SQL handle SNR/SR correctly, but there's no toggle in manual entry or import review.
+- **Transfers**: RPC supports bookie→bank, bank→bookie, deposit, withdrawal — but bookie→bookie is two manual steps. Needs a single guided flow that writes two `transfer_group_id`-linked pairs via bank.
+- **Accounts page** is minimal (per file list); needs balance / open exposure / available / realised P/L per bookie, card layout.
+- **Dashboard**: KPIs are okay but "projected" is wrong for arbs; no upcoming-bets section, no per-bookie totals, recent activity is ledger-only (no bet context).
+- **History page** has no filters.
+- **Login restriction** (`djpotter333@hotmail.com` only): `handle_new_user` already flags `is_owner`, but `/auth` doesn't actually block other emails. Need a gate.
 
-## 2. Proposed Supabase Schema
+## 2. Data model changes (small, additive)
 
-New, ledger-first model. Old tables (`bookies`, `bets`, `transfers`, `bank_ledger`, `audit_log`) are migrated, not dropped, so existing data can be backfilled.
+Schema is mostly right. Only deltas needed:
 
-```text
-accounts                       -- bookies + the single bank/transit account
-  id, name, kind ('bookie'|'bank'), currency,
-  colour, icon, is_active, min_threshold, notes,
-  user_id, created_at, updated_at
+- `bets_v2`: add `event_time TIMESTAMPTZ NULL` (kickoff, distinct from `date_placed`), `sport TEXT`, `league TEXT`, `ev_pct NUMERIC`, `clv_pct NUMERIC`, `fair_odds NUMERIC`, `source TEXT` (`'manual'|'csv'`), `external_ref TEXT` (for idempotent re-imports).
+- `bet_legs`: already has `stake_prefunded` — keep. Add `market TEXT` (the "BET" text for that leg).
+- New RPC `import_bets_batch(p_rows jsonb)` that: dedupes by `external_ref`, creates missing bookies, groups arb pairs, writes bets + legs + ledger in one transaction.
+- New RPC `transfer_bookie_to_bookie(p_from uuid, p_to uuid, p_bank uuid, p_amount numeric, p_when, p_memo)` that writes 4 ledger entries with one shared `transfer_group_id`.
+- Unique index `(user_id, external_ref)` on `bets_v2` so re-imports are idempotent.
 
-bets
-  id, user_id, date_placed, bet_type ('ev'|'arb'),
-  status ('open'|'settled'|'void'),
-  event, market, notes, tags text[],
-  created_at, updated_at
-  -- NO stake/odds/return here; those live on legs
+## 3. Implementation phases
 
-bet_legs
-  id, bet_id, leg_number,
-  account_id (bookie), selection, odds, stake,
-  is_free_bet, free_bet_type ('snr'|'sr'|null),
-  outcome ('open'|'win'|'loss'|'void'|'half_win'|'half_loss'|'push'),
-  stake_prefunded boolean default false,   -- "already in opening balance"
-  settled_at, created_at, updated_at
+### Phase A — schema + owner gate (1 migration)
+- Migration: columns above, indexes, RPCs, owner-only auth trigger that blocks signups other than `djpotter333@hotmail.com`.
+- `/auth` page: also reject non-owner sign-ins client-side with clear message.
 
-ledger_entries                 -- the single source of truth for money
-  id, user_id, account_id, occurred_at,
-  amount numeric,              -- signed: + credit, − debit on this account
-  entry_type (
-    'opening_balance' | 'deposit' | 'withdrawal' |
-    'transfer_out' | 'transfer_in' |
-    'bet_stake' | 'bet_settlement' | 'free_bet_settlement' |
-    'manual_correction'
-  ),
-  transfer_group_id uuid,      -- pairs the two legs of a transfer
-  bet_leg_id uuid,             -- links stake/settlement back to the leg
-  memo, created_at
+### Phase B — CSV import (the core ask)
+- Rewrite `src/lib/csv.ts` around the real BetHero columns. PapaParse with `header:true, skipEmptyLines:'greedy'`, then:
+  - Strip repeated header rows (rows where `BOOK === 'BOOK'`).
+  - Normalize: trim, collapse whitespace, lowercase keys, parse `STAKE`/`ODDS`/`EV`/`CLV` tolerating `nan`, `-`, blanks, `£`/`$`.
+  - Map `BET TYPE`: `+ev` → `ev`, `arbitrage`/`arb` → `arb`.
+  - Map `STATUS`: `pending|open` → `open`; `won|win` → `win`; `lost|loss` → `loss`; `void|push|cancelled` → `void`.
+  - Parse `PLACED` and `TIME` with `date-fns` (tolerant fallbacks).
+  - Free-bet detection: scan `NOTES`/`BET` for `free bet`, `fb`, `snr`, `sr`; default off, user can toggle per row.
+- Arb grouping heuristic: rows with `bet_type='arb'` matched on `(EVENT normalized, TIME within ±5min, PLACED within ±10min)` and different `BOOK`; surface ungrouped arb singletons as warnings.
+- New `/bets/import` page with 3 steps:
+  1. **Upload** (drop CSV).
+  2. **Review**: table of parsed rows, editable: bookie mapping (dropdown of existing accounts + "create new"), free-bet toggle + SNR/SR, "stake already in opening balance" toggle (default ON for open bets), arb-pair grouping (drag/swap or merge buttons), status, outcome.
+  3. **Confirm & import**: posts to `import_bets_batch`. Shows per-row result (created / skipped / error).
+- Idempotent via deterministic `external_ref = sha1(PLACED|BOOK|EVENT|BET|STAKE|ODDS)`.
 
-audit_log (kept)
-```
+### Phase C — guided transfers
+- `transfers.tsx`: tabs for **Deposit**, **Withdraw**, **Bank ↔ Bookie**, **Bookie → Bookie (via bank)**, **External top-up**.
+- Bookie → Bookie: one form (From, To, Amount, Date, Memo). Calls new RPC. Shows the 4-leg breakdown as a preview before submit.
 
-Invariant: **every account's balance = sum(ledger_entries.amount where account_id = X)**. No stored balances anywhere.
+### Phase D — dashboard + accounts + bets pages
+- **Dashboard**: fix arb projection — group open legs by `bet_id`; for EV bets sum `legProjectedProfit`; for arbs compute `bestCase` / `worstCase` per bet then sum separately. New KPIs: Open EV projected, Arb worst-case, Arb best-case, Realised P/L. Add "Upcoming bets" list grouped by day (uses `event_time`). Per-bookie totals strip.
+- **Accounts**: card grid — balance, open exposure (sum of open cash leg stakes), available (= balance, since prefunded stakes aren't deducted), realised P/L, min threshold warning. Sort by balance / name. Click → drawer with recent activity.
+- **Bets page**: separate "Open" vs "Settled" tabs; arb rows render as a single card with both legs side-by-side, showing `If A wins → £X`, `If B wins → £Y`, and Best/Worst chips. Inline settle.
+- **History page**: filters (date range, status, bookie, ev/arb, cash/free, type=bet/transfer/deposit/withdrawal).
 
-RLS: all tables scoped to `auth.uid() = user_id`. Single allow-listed user (`djpotter333@hotmail.com`) — anyone else can sign up but sees no data (and we'll gate the auth page to email-only sign-in for this address).
+### Phase E — analytics polish
+- ROI by month, by bookie, by bet type. Cumulative bankroll line already exists — keep, add markers for deposits/withdrawals.
 
-## 3. Implementation Phases
+## 4. Out of scope / explicit non-goals
 
-**Phase A — Auth + schema**
-- Add Supabase email/password auth, `/auth` route, integration-managed `_authenticated` gate, all app routes moved under it.
-- Migration: create `accounts`, `bets_v2`, `bet_legs`, `ledger_entries`. RLS by `user_id`. GRANTs to `authenticated` + `service_role`.
-- Backfill script (server fn, admin) to map existing `bookies`/`bets`/`transfers` into the new tables: opening_balance rows from current `bookies.opening_balance`, bet legs from `bets` (1 leg for EV+, grouped by `pair_id` for arb), ledger entries for stakes/settlements/transfers.
+- No multi-user. Only `djpotter333@hotmail.com`.
+- No live odds feeds, no scrapers, no settling automation.
+- No mobile app — responsive web only.
+- No currency conversion (assume GBP unless `CURRENCY` says otherwise; store as-is, display per-account currency).
 
-**Phase B — Ledger engine**
-- `src/lib/ledger.ts`: pure helpers `accountBalance`, `openExposure`, `availableBalance`, `realisedPL`, `projectedPL`, `freeBetValueExtracted`.
-- `src/lib/bets.functions.ts`: `createBet`, `settleBetLeg`, `voidBet` — each writes bet/leg rows AND the matching `ledger_entries` atomically. `stake_prefunded=true` skips the `bet_stake` entry.
-- `src/lib/transfers.functions.ts`: `createTransfer(from, to, amount)` always writes 2 ledger entries sharing a `transfer_group_id`; bookie↔bank is one transfer, bookie↔bookie is two transfers via bank.
-- Remove all balance math from routes; everything reads from these helpers.
+## 5. Technical notes
 
-**Phase C — Setup wizard** (`/setup`)
-- Gated: shown when user has 0 accounts. Steps as specified (bookies → bank → open bets → review → confirm). Open-bet import defaults `stake_prefunded=true`.
+- All mutations go through SQL `SECURITY DEFINER` RPCs that own ledger writes — never insert into `ledger_entries` from the client except for the opening-balance flow already in place.
+- `external_ref` makes the importer safe to re-run.
+- Arb best/worst calc lives in `src/lib/ledger.ts` as a pure function so dashboard, bets page, and import preview share it.
+- All new server work uses TanStack `createServerFn` only where needed (most logic is direct RPC from the browser, which is fine because RPCs are `SECURITY DEFINER` + scoped to `auth.uid()`).
 
-**Phase D — Refactored UI**
-- Dashboard: total bankroll, breakdown chart, open exposure, projected vs realised P/L, recent activity, quick-add buttons.
-- Bookies: card-first with Available / Exposure / P/L / quick actions; table toggle.
-- Bets: filters, arb legs grouped, quick-settle drawer, free-bet badges (SNR/SR).
-- Transfers: guided flow (source → amount → destination, bank auto-routes).
-- History: unified ledger + bets feed with filters and CSV export.
-- Analytics: realised vs projected, ROI, by-bookie, by-type, free-bet value, bankroll-over-time, monthly summary.
+---
 
-**Phase E — Bet entry UX**
-- Quick EV+ form, quick Arb form (2 legs side-by-side), live projected-profit preview, free-bet toggle + type, remembered last bookie, duplicate-bet action.
-
-**Phase F — Seed + polish**
-- Seed server fn (admin, owner-only) inserts the requested demo data into the signed-in owner account.
-- Dark/light theme pass, mobile breakpoints, badges/colour coding.
-- Remove dead code: old `bank_ledger` table, old `transfers` table, old CSV-import status-mapping branches once backfill is verified.
-
-## 4. Technical Notes
-
-- Stack stays Vite + TanStack Start + Supabase.
-- Auth: Supabase email/password. Owner email `djpotter333@hotmail.com` hard-allowed via a `profiles.is_owner` flag set by trigger when that email signs up; all RLS policies check `auth.uid() = user_id` so even if someone else signs up they see nothing.
-- Server-side writes (bet create/settle, transfer create, backfill, seed) go through `createServerFn` with `requireSupabaseAuth` so the bet → ledger writes happen in one transaction via an RPC (`create_bet_with_ledger`, `settle_leg_with_ledger`, `create_transfer_with_ledger`).
-- Existing CSV import is rewritten to call `createBet` per row with `stake_prefunded` configurable in the preview step.
-
-## 5. What I need from you before I start
-
-This is a large rebuild — roughly a full day of focused work and a meaningful credit spend. Before I touch code I want to confirm:
-
-1. **OK to migrate existing data** into the new schema and then drop the old `bank_ledger` + `transfers` tables once verified? (Old `bookies`/`bets` rows are preserved by backfill.)
-2. **Auth lockdown**: do you want the `/auth` page to *only* accept `djpotter333@hotmail.com` (reject other sign-ups at the UI), or allow sign-up but show empty data to anyone else? I recommend the first.
-3. **Currency**: keep multi-currency-per-bookie as today, or collapse to a single base currency (GBP) for simpler analytics?
-4. **Phase order**: ship Phase A+B (auth + ledger + backfill) first so your existing data is safe and reconciled, then iterate UI in follow-up turns? Or one big drop?
-
-Reply with answers (or just "go, your call on all four") and I'll execute.
+If this matches what you want I'll start with **Phase A migration** (it has to land and be approved before the rest compiles against the new columns), then ship B → E.

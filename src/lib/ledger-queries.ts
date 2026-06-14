@@ -106,6 +106,41 @@ export async function createTransfer(
   if (error) throw error;
 }
 
+export async function transferBookieToBookie(
+  from: string,
+  to: string,
+  bank: string,
+  amount: number,
+  when?: string,
+  memo?: string,
+) {
+  const { error } = await supabase.rpc("transfer_bookie_to_bookie", {
+    p_from: from as never,
+    p_to: to as never,
+    p_bank: bank as never,
+    p_amount: amount,
+    p_when: when ?? new Date().toISOString(),
+    p_memo: (memo ?? null) as never,
+  });
+  if (error) throw error;
+}
+
+export async function importBetsBatch(rows: unknown[]): Promise<{
+  created: number;
+  skipped: number;
+  errors: { external_ref?: string; error: string }[];
+}> {
+  const { data, error } = await supabase.rpc("import_bets_batch", {
+    p_rows: rows as never,
+  });
+  if (error) throw error;
+  return data as {
+    created: number;
+    skipped: number;
+    errors: { external_ref?: string; error: string }[];
+  };
+}
+
 export async function createAccount(input: {
   name: string;
   kind: "bookie" | "bank";
