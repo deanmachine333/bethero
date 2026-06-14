@@ -565,7 +565,7 @@ function ImportPage() {
             <CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-[var(--win)]" />
             <div className="text-xl font-semibold">Import complete</div>
             <div className="mt-2 text-sm text-muted-foreground">
-              {result.created} bets created · {result.skipped} duplicates skipped ·{" "}
+              {result.created} created · {result.updated ?? 0} updated · {result.skipped} skipped ·{" "}
               {result.errors.length} errors
             </div>
             {newBookiesCreated.length > 0 && (
