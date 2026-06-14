@@ -151,6 +151,7 @@ export type Database = {
           id: string
           is_free_bet: boolean
           leg_number: number
+          market: string | null
           odds: number
           outcome: string
           selection: string | null
@@ -168,6 +169,7 @@ export type Database = {
           id?: string
           is_free_bet?: boolean
           leg_number?: number
+          market?: string | null
           odds?: number
           outcome?: string
           selection?: string | null
@@ -185,6 +187,7 @@ export type Database = {
           id?: string
           is_free_bet?: boolean
           leg_number?: number
+          market?: string | null
           odds?: number
           outcome?: string
           selection?: string | null
@@ -282,12 +285,20 @@ export type Database = {
       bets_v2: {
         Row: {
           bet_type: string
+          clv_pct: number | null
           created_at: string
           date_placed: string
+          ev_pct: number | null
           event: string
+          event_time: string | null
+          external_ref: string | null
+          fair_odds: number | null
           id: string
+          league: string | null
           market: string | null
           notes: string | null
+          source: string
+          sport: string | null
           status: string
           tags: string[]
           updated_at: string
@@ -295,12 +306,20 @@ export type Database = {
         }
         Insert: {
           bet_type: string
+          clv_pct?: number | null
           created_at?: string
           date_placed?: string
+          ev_pct?: number | null
           event: string
+          event_time?: string | null
+          external_ref?: string | null
+          fair_odds?: number | null
           id?: string
+          league?: string | null
           market?: string | null
           notes?: string | null
+          source?: string
+          sport?: string | null
           status?: string
           tags?: string[]
           updated_at?: string
@@ -308,12 +327,20 @@ export type Database = {
         }
         Update: {
           bet_type?: string
+          clv_pct?: number | null
           created_at?: string
           date_placed?: string
+          ev_pct?: number | null
           event?: string
+          event_time?: string | null
+          external_ref?: string | null
+          fair_odds?: number | null
           id?: string
+          league?: string | null
           market?: string | null
           notes?: string | null
+          source?: string
+          sport?: string | null
           status?: string
           tags?: string[]
           updated_at?: string
@@ -528,6 +555,7 @@ export type Database = {
         }
         Returns: string
       }
+      import_bets_batch: { Args: { p_rows: Json }; Returns: Json }
       leg_return: {
         Args: {
           p_free_type: string
@@ -541,6 +569,17 @@ export type Database = {
       settle_leg_with_ledger: {
         Args: { p_leg_id: string; p_outcome: string; p_settled_at?: string }
         Returns: undefined
+      }
+      transfer_bookie_to_bookie: {
+        Args: {
+          p_amount: number
+          p_bank: string
+          p_from: string
+          p_memo?: string
+          p_to: string
+          p_when?: string
+        }
+        Returns: string
       }
     }
     Enums: {
