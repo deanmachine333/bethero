@@ -59,89 +59,6 @@ export type Database = {
         }
         Relationships: []
       }
-      audit_log: {
-        Row: {
-          action: string
-          actor: string
-          created_at: string
-          entity_id: string | null
-          entity_type: string
-          field: string | null
-          id: string
-          new_value: Json | null
-          old_value: Json | null
-        }
-        Insert: {
-          action: string
-          actor?: string
-          created_at?: string
-          entity_id?: string | null
-          entity_type: string
-          field?: string | null
-          id?: string
-          new_value?: Json | null
-          old_value?: Json | null
-        }
-        Update: {
-          action?: string
-          actor?: string
-          created_at?: string
-          entity_id?: string | null
-          entity_type?: string
-          field?: string | null
-          id?: string
-          new_value?: Json | null
-          old_value?: Json | null
-        }
-        Relationships: []
-      }
-      bank_ledger: {
-        Row: {
-          amount: number
-          created_at: string
-          currency: string
-          date: string
-          direction: string
-          from_label: string | null
-          id: string
-          reference: string | null
-          to_label: string | null
-          transfer_id: string | null
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          currency?: string
-          date?: string
-          direction: string
-          from_label?: string | null
-          id?: string
-          reference?: string | null
-          to_label?: string | null
-          transfer_id?: string | null
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          currency?: string
-          date?: string
-          direction?: string
-          from_label?: string | null
-          id?: string
-          reference?: string | null
-          to_label?: string | null
-          transfer_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bank_ledger_transfer_id_fkey"
-            columns: ["transfer_id"]
-            isOneToOne: false
-            referencedRelation: "transfers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       bet_legs: {
         Row: {
           account_id: string
@@ -214,74 +131,6 @@ export type Database = {
           },
         ]
       }
-      bets: {
-        Row: {
-          bookie_id: string
-          clv: number | null
-          created_at: string
-          currency: string
-          date_placed: string
-          event: string
-          id: string
-          is_free_bet: boolean
-          market: string
-          notes: string | null
-          odds: number
-          outcome: string
-          pair_id: string | null
-          return: number
-          stake: number
-          type: string
-          updated_at: string
-        }
-        Insert: {
-          bookie_id: string
-          clv?: number | null
-          created_at?: string
-          currency?: string
-          date_placed: string
-          event: string
-          id?: string
-          is_free_bet?: boolean
-          market: string
-          notes?: string | null
-          odds?: number
-          outcome?: string
-          pair_id?: string | null
-          return?: number
-          stake?: number
-          type?: string
-          updated_at?: string
-        }
-        Update: {
-          bookie_id?: string
-          clv?: number | null
-          created_at?: string
-          currency?: string
-          date_placed?: string
-          event?: string
-          id?: string
-          is_free_bet?: boolean
-          market?: string
-          notes?: string | null
-          odds?: number
-          outcome?: string
-          pair_id?: string | null
-          return?: number
-          stake?: number
-          type?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bets_bookie_id_fkey"
-            columns: ["bookie_id"]
-            isOneToOne: false
-            referencedRelation: "bookies"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       bets_v2: {
         Row: {
           bet_type: string
@@ -345,42 +194,6 @@ export type Database = {
           tags?: string[]
           updated_at?: string
           user_id?: string
-        }
-        Relationships: []
-      }
-      bookies: {
-        Row: {
-          country: string | null
-          created_at: string
-          currency: string
-          id: string
-          min_threshold: number
-          name: string
-          notes: string | null
-          opening_balance: number
-          updated_at: string
-        }
-        Insert: {
-          country?: string | null
-          created_at?: string
-          currency?: string
-          id?: string
-          min_threshold?: number
-          name: string
-          notes?: string | null
-          opening_balance?: number
-          updated_at?: string
-        }
-        Update: {
-          country?: string | null
-          created_at?: string
-          currency?: string
-          id?: string
-          min_threshold?: number
-          name?: string
-          notes?: string | null
-          opening_balance?: number
-          updated_at?: string
         }
         Relationships: []
       }
@@ -464,69 +277,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
-      }
-      transfers: {
-        Row: {
-          amount: number
-          bank_cleared_date: string | null
-          created_at: string
-          currency: string
-          deposit_date: string | null
-          from_bookie_id: string | null
-          id: string
-          notes: string | null
-          reference: string | null
-          status: string
-          to_bookie_id: string | null
-          updated_at: string
-          withdraw_date: string | null
-        }
-        Insert: {
-          amount: number
-          bank_cleared_date?: string | null
-          created_at?: string
-          currency?: string
-          deposit_date?: string | null
-          from_bookie_id?: string | null
-          id?: string
-          notes?: string | null
-          reference?: string | null
-          status?: string
-          to_bookie_id?: string | null
-          updated_at?: string
-          withdraw_date?: string | null
-        }
-        Update: {
-          amount?: number
-          bank_cleared_date?: string | null
-          created_at?: string
-          currency?: string
-          deposit_date?: string | null
-          from_bookie_id?: string | null
-          id?: string
-          notes?: string | null
-          reference?: string | null
-          status?: string
-          to_bookie_id?: string | null
-          updated_at?: string
-          withdraw_date?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "transfers_from_bookie_id_fkey"
-            columns: ["from_bookie_id"]
-            isOneToOne: false
-            referencedRelation: "bookies"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transfers_to_bookie_id_fkey"
-            columns: ["to_bookie_id"]
-            isOneToOne: false
-            referencedRelation: "bookies"
-            referencedColumns: ["id"]
-          },
-        ]
       }
     }
     Views: {
