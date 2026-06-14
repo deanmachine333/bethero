@@ -54,6 +54,7 @@ function ImportPage() {
   const [result, setResult] = useState<{ created: number; skipped: number; errors: { error: string }[] } | null>(null);
   const [newBookiesCreated, setNewBookiesCreated] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
 
   /** Bookie name → mapped existing account id ("" = create new on import). */
   const [bookieMap, setBookieMap] = useState<Record<string, string>>({});
@@ -64,23 +65,99 @@ function ImportPage() {
     return [...set].sort();
   }, [rows]);
 
+  function applyBookieMapping(srcRows: ParsedRow[]) {
+    return srcRows.map((r) => {
+      const id = bookieMap[r.bookie];
+      if (id) {
+        const acct = bookies.find((b) => b.id === id);
+        if (acct) return { ...r, bookie: acct.name };
+      }
+      return r;
+    });
+  }
+
+  /** Step 1 of import: classify rows as new vs conflict, then either go to conflicts step or import. */
+  const detectMut = useMutation({
+    mutationFn: async () => {
+      const mapped = applyBookieMapping(rows.filter((r) => !r.skip));
+      const payload = rowsToBetPayload(mapped) as Array<{ external_ref: string }>;
+      const refs = payload.map((p) => p.external_ref).filter(Boolean);
+      const existing = await findBetsByExternalRefs(refs);
+      const newConflicts: Conflict[] = [];
+      for (const p of payload) {
+        const match = existing.get(p.external_ref);
+        if (match) {
+          newConflicts.push({
+            externalRef: p.external_ref,
+            bet: match.bet,
+            legs: match.legs,
+            incoming: p,
+            resolution: match.bet.last_manual_edit_at ? "keep" : "replace",
+          });
+        }
+      }
+      return { payload, conflicts: newConflicts };
+    },
+    onSuccess: ({ conflicts: c }) => {
+      if (c.length > 0) {
+        setConflicts(c);
+        setStep("conflicts");
+      } else {
+        importMut.mutate();
+      }
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const importMut = useMutation({
     mutationFn: async () => {
-      // Apply bookie mapping: replace each row's bookie with the chosen existing name.
-      const mapped = rows.map((r) => {
-        const id = bookieMap[r.bookie];
-        if (id) {
-          const acct = bookies.find((b) => b.id === id);
-          if (acct) return { ...r, bookie: acct.name };
+      const mapped = applyBookieMapping(rows.filter((r) => !r.skip));
+      const payload = rowsToBetPayload(mapped) as Array<{ external_ref: string } & Record<string, unknown>>;
+      // Conflict-handling: split into new (no existing match) vs reimport
+      const conflictMap = new Map(conflicts.map((c) => [c.externalRef, c]));
+      const toCreate: unknown[] = [];
+      const toReimport: Conflict[] = [];
+      for (const p of payload) {
+        const c = conflictMap.get(p.external_ref);
+        if (c) {
+          if (c.resolution === "replace") toReimport.push(c);
+          // else "keep" → do nothing for this bet
+        } else {
+          toCreate.push(p);
         }
-        return r;
-      });
-      const payload = rowsToBetPayload(mapped);
-      return importBetsBatch(payload);
+      }
+      const createResult = toCreate.length
+        ? await importBetsBatch(toCreate)
+        : { created: 0, skipped: 0, errors: [] as { error: string }[] };
+
+      let updated = 0;
+      const updateErrors: { error: string }[] = [];
+      for (const c of toReimport) {
+        try {
+          await reimportBet(c.bet.id, c.incoming, [
+            "event",
+            "market",
+            "notes",
+            "stake",
+            "odds",
+            "outcome",
+            "is_free_bet",
+            "stake_prefunded",
+          ]);
+          updated += 1;
+        } catch (e) {
+          updateErrors.push({ error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      return {
+        created: createResult.created,
+        skipped: createResult.skipped + conflicts.filter((c) => c.resolution === "keep").length,
+        updated,
+        errors: [...createResult.errors, ...updateErrors],
+      };
     },
     onSuccess: (res) => {
       setResult(res);
-      // Capture which bookies will be newly created
       const created = uniqueBookies.filter((n) => !bookieMap[n]);
       setNewBookiesCreated(created);
       setStep("done");
@@ -88,7 +165,9 @@ function ImportPage() {
       qc.invalidateQueries({ queryKey: ["bets_v2"] });
       qc.invalidateQueries({ queryKey: ["bet_legs"] });
       qc.invalidateQueries({ queryKey: ["ledger"] });
-      toast.success(`Imported ${res.created}, skipped ${res.skipped}`);
+      toast.success(
+        `Created ${res.created}, updated ${res.updated}, skipped ${res.skipped}`,
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
