@@ -253,7 +253,7 @@ function EditAccountDialog({ account, currentBalance }: { account: Account; curr
           user_id: u.user.id,
           account_id: account.id,
           amount: delta,
-          entry_type: "adjustment",
+          entry_type: "manual_correction",
           memo: adjustMemo.trim(),
         });
         if (lErr) throw lErr;
