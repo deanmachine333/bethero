@@ -32,8 +32,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Upload } from "lucide-react";
+import { Plus, Upload, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { BetDetailDialog } from "@/components/bet/BetDetailDialog";
+import type { Bet, BetLeg } from "@/lib/ledger";
 
 export const Route = createFileRoute("/_authenticated/bets")({
   head: () => ({ meta: [{ title: "Bets — BetHero" }] }),
