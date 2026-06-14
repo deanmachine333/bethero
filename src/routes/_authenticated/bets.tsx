@@ -187,7 +187,7 @@ function BetsPage() {
                     )}
                   </div>
                 </div>
-                <ul className="mt-2 space-y-1">
+                <ul className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()}>
                   {blegs.map((l) => {
                     const ac = accounts.find((a) => a.id === l.account_id);
                     return (
