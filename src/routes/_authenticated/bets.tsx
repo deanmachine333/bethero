@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -43,6 +43,7 @@ export const Route = createFileRoute("/_authenticated/bets")({
 type Filter = "all" | "open" | "settled";
 
 function BetsPage() {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: fetchAccounts });
   const betsQ = useQuery({ queryKey: ["bets_v2"], queryFn: fetchBets });
   const legsQ = useQuery({ queryKey: ["bet_legs"], queryFn: fetchBetLegs });
@@ -56,6 +57,10 @@ function BetsPage() {
     () => bets.filter((b) => filter === "all" || b.status === filter),
     [bets, filter],
   );
+
+  if (pathname !== "/bets") {
+    return <Outlet />;
+  }
 
   return (
     <AppShell title="Bets">
