@@ -5,7 +5,7 @@ export async function fetchAccounts(): Promise<Account[]> {
   const { data, error } = await supabase
     .from("accounts")
     .select("*")
-    .order("kind", { ascending: false }) // bookie before bank? actually bank first for layout
+    .order("kind", { ascending: false })
     .order("name");
   if (error) throw error;
   return data ?? [];
@@ -15,6 +15,7 @@ export async function fetchBets(): Promise<Bet[]> {
   const { data, error } = await supabase
     .from("bets_v2")
     .select("*")
+    .eq("is_archived", false)
     .order("date_placed", { ascending: false })
     .limit(2000);
   if (error) throw error;
@@ -75,6 +76,50 @@ export async function createBet(input: {
     p_notes: (input.notes ?? null) as never,
     p_tags: input.tags ?? [],
     p_legs: input.legs as never,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export interface UpdateLegInput extends NewLegInput {
+  id?: string;
+  market?: string | null;
+}
+
+export async function updateBet(
+  betId: string,
+  bet: {
+    event?: string;
+    market?: string | null;
+    notes?: string | null;
+    bet_type?: "ev" | "arb";
+    date_placed?: string;
+    event_time?: string | null;
+    sport?: string | null;
+    league?: string | null;
+  },
+  legs: UpdateLegInput[],
+) {
+  const { data, error } = await supabase.rpc("update_bet_with_ledger", {
+    p_bet_id: betId,
+    p_bet: bet as never,
+    p_legs: legs as never,
+    p_mark_manual: true,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+export async function archiveBet(betId: string) {
+  const { error } = await supabase.rpc("archive_bet", { p_bet_id: betId });
+  if (error) throw error;
+}
+
+export async function reimportBet(betId: string, incoming: unknown, overwriteFields: string[]) {
+  const { data, error } = await supabase.rpc("reimport_bet", {
+    p_bet_id: betId,
+    p_incoming: incoming as never,
+    p_overwrite_fields: overwriteFields,
   });
   if (error) throw error;
   return data as string;
@@ -141,6 +186,61 @@ export async function importBetsBatch(rows: unknown[]): Promise<{
   };
 }
 
+export async function importTransfersBatch(rows: unknown[]): Promise<{
+  created: number;
+  skipped: number;
+  errors: { import_key?: string; error: string }[];
+}> {
+  const { data, error } = await supabase.rpc("import_transfers_batch", {
+    p_rows: rows as never,
+  });
+  if (error) throw error;
+  return data as {
+    created: number;
+    skipped: number;
+    errors: { import_key?: string; error: string }[];
+  };
+}
+
+export async function updateAccountWithCorrection(input: {
+  id: string;
+  name?: string;
+  currency?: string;
+  is_active?: boolean;
+  min_threshold?: number;
+  notes?: string | null;
+  target_balance?: number;
+  memo?: string | null;
+}) {
+  const { error } = await supabase.rpc("update_account_with_correction", {
+    p_id: input.id,
+    p_name: (input.name ?? null) as never,
+    p_currency: (input.currency ?? null) as never,
+    p_is_active: (input.is_active ?? null) as never,
+    p_min_threshold: (input.min_threshold ?? null) as never,
+    p_notes: (input.notes ?? null) as never,
+    p_target_balance: (input.target_balance ?? null) as never,
+    p_memo: (input.memo ?? null) as never,
+  });
+  if (error) throw error;
+}
+
+export async function updateTransferGroup(groupId: string, memo?: string, when?: string) {
+  const { error } = await supabase.rpc("update_transfer_group", {
+    p_group_id: groupId,
+    p_memo: (memo ?? null) as never,
+    p_when: (when ?? null) as never,
+  });
+  if (error) throw error;
+}
+
+export async function reverseTransferGroup(groupId: string) {
+  const { error } = await supabase.rpc("reverse_transfer_group", {
+    p_group_id: groupId,
+  });
+  if (error) throw error;
+}
+
 export async function createAccount(input: {
   name: string;
   kind: "bookie" | "bank";
@@ -175,4 +275,28 @@ export async function createAccount(input: {
     if (lerr) throw lerr;
   }
   return data;
+}
+
+/** Look up existing bets that match given external refs. Returns map ref → bet+legs. */
+export async function findBetsByExternalRefs(refs: string[]) {
+  if (refs.length === 0) return new Map<string, { bet: Bet; legs: BetLeg[] }>();
+  const { data: bets, error } = await supabase
+    .from("bets_v2")
+    .select("*")
+    .in("external_ref", refs);
+  if (error) throw error;
+  const betIds = (bets ?? []).map((b) => b.id);
+  const { data: legs, error: legErr } = betIds.length
+    ? await supabase.from("bet_legs").select("*").in("bet_id", betIds)
+    : { data: [] as BetLeg[], error: null };
+  if (legErr) throw legErr;
+  const map = new Map<string, { bet: Bet; legs: BetLeg[] }>();
+  for (const b of bets ?? []) {
+    if (!b.external_ref) continue;
+    map.set(b.external_ref, {
+      bet: b,
+      legs: (legs ?? []).filter((l) => l.bet_id === b.id),
+    });
+  }
+  return map;
 }
