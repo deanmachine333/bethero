@@ -284,6 +284,9 @@ function TransferGroupDialog({
     </Dialog>
   );
 }
+
+function B2BForm({
+  bookies,
   bank,
   entries,
 }: {
