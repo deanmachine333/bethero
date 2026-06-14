@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,11 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, Upload, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, Upload, CheckCircle2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { parseBetheroCsv, rowsToBetPayload, type ParsedRow } from "@/lib/csv";
 import { fetchAccounts, importBetsBatch } from "@/lib/ledger-queries";
-import { fmtMoney } from "@/lib/ledger";
 
 export const Route = createFileRoute("/_authenticated/bets/import")({
   head: () => ({ meta: [{ title: "Import — BetHero" }] }),
@@ -30,6 +29,7 @@ type Step = "upload" | "review" | "done";
 
 function ImportPage() {
   const qc = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: fetchAccounts });
   const accounts = accountsQ.data ?? [];
   const bookies = accounts.filter((a) => a.kind === "bookie");
@@ -37,6 +37,7 @@ function ImportPage() {
   const [step, setStep] = useState<Step>("upload");
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [result, setResult] = useState<{ created: number; skipped: number; errors: { error: string }[] } | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
   /** Bookie name → mapped existing account id ("" = create new on import). */
   const [bookieMap, setBookieMap] = useState<Record<string, string>>({});
@@ -74,6 +75,10 @@ function ImportPage() {
   });
 
   async function onFile(file: File) {
+    if (!file.name.toLowerCase().endsWith(".csv") && file.type !== "text/csv") {
+      toast.error("Please upload a CSV file");
+      return;
+    }
     try {
       const parsed = await parseBetheroCsv(file);
       if (!parsed.length) {
@@ -96,6 +101,14 @@ function ImportPage() {
     }
   }
 
+  function onDrop(e: DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void onFile(file);
+  }
+
   const updateRow = (i: number, patch: Partial<ParsedRow>) =>
     setRows((curr) => curr.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
 
@@ -106,26 +119,63 @@ function ImportPage() {
     <AppShell title="Import bets">
       {step === "upload" && (
         <Card>
-          <CardContent className="p-8 text-center">
-            <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
-            <div className="mb-1 font-medium">Drop your BetHero CSV export</div>
-            <div className="mb-4 text-sm text-muted-foreground">
-              Columns expected: SPORT, LEAGUE, EVENT, TIME, BET, BET TYPE, BOOK, STAKE,
-              CURRENCY, ODDS, EV, CLV, FAIR ODDS, CURRENT FAIR ODDS, PROFILE, STATUS,
-              PLACED, NOTES. Re-uploading the same file is safe — duplicates are skipped.
-            </div>
+          <CardContent className="p-4 sm:p-8">
             <input
               id="csv"
+              ref={fileInputRef}
               type="file"
               accept=".csv,text/csv"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
             />
-            <Button asChild>
-              <label htmlFor="csv" className="cursor-pointer">
-                Choose CSV file
-              </label>
-            </Button>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click();
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                setDragActive(true);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragActive(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                setDragActive(false);
+              }}
+              onDrop={onDrop}
+              className={
+                "flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 text-center transition sm:p-12 " +
+                (dragActive
+                  ? "border-primary bg-primary/10"
+                  : "border-border bg-muted/20 hover:border-primary hover:bg-primary/5")
+              }
+            >
+              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10">
+                {dragActive ? (
+                  <FileText className="h-7 w-7 text-primary" />
+                ) : (
+                  <Upload className="h-7 w-7 text-primary" />
+                )}
+              </div>
+              <div className="text-lg font-semibold">Drop your BetHero CSV here</div>
+              <div className="mt-1 text-sm text-muted-foreground">or browse to choose a file from your computer</div>
+              <Button type="button" className="mt-5" onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}>
+                <Upload className="mr-2 h-4 w-4" /> Browse CSV file
+              </Button>
+              <div className="mt-5 max-w-3xl text-xs leading-5 text-muted-foreground">
+                Expected columns: SPORT, LEAGUE, EVENT, TIME, BET, BET TYPE, BOOK, STAKE,
+                CURRENCY, ODDS, EV, CLV, FAIR ODDS, CURRENT FAIR ODDS, PROFILE, STATUS,
+                PLACED, NOTES. Re-uploading the same file is safe — duplicates are skipped.
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -354,5 +404,3 @@ function ImportPage() {
   );
 }
 
-// silence unused-import warning when fmtMoney isn't referenced (kept for future row preview)
-void fmtMoney;
