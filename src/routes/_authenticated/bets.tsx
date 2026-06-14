@@ -95,7 +95,11 @@ function BetsPage() {
           const real = blegs.reduce((a, l) => a + legRealisedProfit(l), 0);
           const isArb = b.bet_type === "arb";
           return (
-            <Card key={b.id}>
+            <Card
+              key={b.id}
+              className="cursor-pointer transition hover:border-primary/50 hover:shadow-sm"
+              onClick={() => setOpenBet(b)}
+            >
               <CardContent className="p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -106,6 +110,11 @@ function BetsPage() {
                       <Badge variant={b.status === "open" ? "outline" : "secondary"}>
                         {b.status}
                       </Badge>
+                      {b.last_manual_edit_at && (
+                        <Badge variant="outline" className="h-4 text-[10px]">
+                          <Pencil className="mr-0.5 h-2.5 w-2.5" /> edited
+                        </Badge>
+                      )}
                       <span className="text-xs text-muted-foreground">
                         {b.date_placed.slice(0, 10)}
                       </span>
