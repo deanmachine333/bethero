@@ -91,7 +91,7 @@ function TransfersPage() {
               />
             </TabsContent>
             <TabsContent value="topup">
-              <TopUpForm accounts={accounts} />
+              <TopUpForm accounts={accounts} entries={entries} />
             </TabsContent>
           </Tabs>
         </CardContent>
@@ -174,18 +174,29 @@ function B2BForm({
   const [memo, setMemo] = useState("");
 
   const save = useMutation({
-    mutationFn: () =>
-      transferBookieToBookie(
+    mutationFn: () => {
+      const amt = Number(amount);
+      if (fromBal < amt) {
+        const acc = bookies.find((b) => b.id === from);
+        throw new Error(
+          `Insufficient balance — ${acc?.name ?? "Account"} only has ${fmtMoney(fromBal)} available`,
+        );
+      }
+      return transferBookieToBookie(
         from,
         to,
         bank!.id,
-        Number(amount),
+        amt,
         undefined,
         memo || undefined,
-      ),
+      );
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ledger"] });
-      toast.success("Transfer recorded");
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      const fromName = bookies.find((b) => b.id === from)?.name ?? "source";
+      const toName = bookies.find((b) => b.id === to)?.name ?? "destination";
+      toast.success(`Moved ${fmtMoney(Number(amount))} from ${fromName} to ${toName}`);
       setAmount("");
       setMemo("");
     },
@@ -205,6 +216,8 @@ function B2BForm({
         .filter((e) => e.account_id === from)
         .reduce((a, e) => a + Number(e.amount), 0)
     : 0;
+  const amtNum = Number(amount) || 0;
+  const insufficient = !!from && amtNum > 0 && amtNum > fromBal;
 
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -272,9 +285,14 @@ function B2BForm({
           <div className="text-muted-foreground">Pick both bookies and an amount.</div>
         )}
       </div>
+      {insufficient && (
+        <div className="col-span-2 rounded border border-[var(--loss)]/40 bg-[var(--loss)]/10 px-2 py-1 text-xs text-[var(--loss)]">
+          Insufficient balance — {bookies.find((b) => b.id === from)?.name} only has {fmtMoney(fromBal)} available
+        </div>
+      )}
       <div className="col-span-2 flex justify-end">
         <Button
-          disabled={save.isPending || !from || !to || !amount || Number(amount) <= 0}
+          disabled={save.isPending || !from || !to || !amount || Number(amount) <= 0 || insufficient}
           onClick={() => save.mutate()}
         >
           {save.isPending ? "…" : "Record transfer"}
@@ -301,17 +319,6 @@ function SimpleTransferForm({
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
 
-  const save = useMutation({
-    mutationFn: () => createTransfer(from, to, Number(amount), undefined, memo || undefined),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ledger"] });
-      toast.success("Transfer recorded");
-      setAmount("");
-      setMemo("");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const fromBal = useMemo(
     () =>
       from
@@ -321,6 +328,30 @@ function SimpleTransferForm({
         : 0,
     [from, entries],
   );
+
+  const fromName = fromOptions.find((o) => o.id === from)?.name;
+  const toName = toOptions.find((o) => o.id === to)?.name;
+  const amtNum = Number(amount) || 0;
+  const insufficient = !!from && amtNum > 0 && amtNum > fromBal;
+
+  const save = useMutation({
+    mutationFn: () => {
+      if (insufficient) {
+        throw new Error(
+          `Insufficient balance — ${fromName ?? "Account"} only has ${fmtMoney(fromBal)} available`,
+        );
+      }
+      return createTransfer(from, to, amtNum, undefined, memo || undefined);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ledger"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      toast.success(`Moved ${fmtMoney(amtNum)} from ${fromName} to ${toName}`);
+      setAmount("");
+      setMemo("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -372,9 +403,14 @@ function SimpleTransferForm({
         <Label className="text-xs">Memo</Label>
         <Input value={memo} onChange={(e) => setMemo(e.target.value)} />
       </div>
+      {insufficient && (
+        <div className="col-span-2 rounded border border-[var(--loss)]/40 bg-[var(--loss)]/10 px-2 py-1 text-xs text-[var(--loss)]">
+          Insufficient balance — {fromName} only has {fmtMoney(fromBal)} available
+        </div>
+      )}
       <div className="col-span-2 flex justify-end">
         <Button
-          disabled={save.isPending || !from || !to || !amount || Number(amount) <= 0}
+          disabled={save.isPending || !from || !to || !amount || amtNum <= 0 || insufficient}
           onClick={() => save.mutate()}
         >
           {save.isPending ? "…" : "Record transfer"}
@@ -386,8 +422,10 @@ function SimpleTransferForm({
 
 function TopUpForm({
   accounts,
+  entries,
 }: {
   accounts: { id: string; name: string; kind: string }[];
+  entries: { account_id: string; amount: number | string }[];
 }) {
   const qc = useQueryClient();
   const [direction, setDirection] = useState<"in" | "out">("in");
@@ -395,14 +433,38 @@ function TopUpForm({
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
 
+  const bal = useMemo(
+    () =>
+      account
+        ? entries
+            .filter((e) => e.account_id === account)
+            .reduce((a, e) => a + Number(e.amount), 0)
+        : 0,
+    [account, entries],
+  );
+  const amtNum = Number(amount) || 0;
+  const accName = accounts.find((a) => a.id === account)?.name;
+  const insufficient = direction === "out" && !!account && amtNum > 0 && amtNum > bal;
+
   const save = useMutation({
-    mutationFn: () =>
-      direction === "in"
-        ? createTransfer(null, account, Number(amount), undefined, memo || undefined)
-        : createTransfer(account, null, Number(amount), undefined, memo || undefined),
+    mutationFn: () => {
+      if (insufficient) {
+        throw new Error(
+          `Insufficient balance — ${accName ?? "Account"} only has ${fmtMoney(bal)} available`,
+        );
+      }
+      return direction === "in"
+        ? createTransfer(null, account, amtNum, undefined, memo || undefined)
+        : createTransfer(account, null, amtNum, undefined, memo || undefined);
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ledger"] });
-      toast.success("Recorded");
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      toast.success(
+        direction === "in"
+          ? `Added ${fmtMoney(amtNum)} to ${accName}`
+          : `Withdrew ${fmtMoney(amtNum)} from ${accName}`,
+      );
       setAmount("");
       setMemo("");
     },
@@ -437,6 +499,9 @@ function TopUpForm({
             ))}
           </SelectContent>
         </Select>
+        {account && (
+          <div className="mt-1 text-xs text-muted-foreground">Balance: {fmtMoney(bal)}</div>
+        )}
       </div>
       <div>
         <Label className="text-xs">Amount</Label>
@@ -451,9 +516,14 @@ function TopUpForm({
         <Label className="text-xs">Memo</Label>
         <Input value={memo} onChange={(e) => setMemo(e.target.value)} />
       </div>
+      {insufficient && (
+        <div className="col-span-2 rounded border border-[var(--loss)]/40 bg-[var(--loss)]/10 px-2 py-1 text-xs text-[var(--loss)]">
+          Insufficient balance — {accName} only has {fmtMoney(bal)} available
+        </div>
+      )}
       <div className="col-span-2 flex justify-end">
         <Button
-          disabled={save.isPending || !account || !amount || Number(amount) <= 0}
+          disabled={save.isPending || !account || !amount || amtNum <= 0 || insufficient}
           onClick={() => save.mutate()}
         >
           {save.isPending ? "…" : "Record"}

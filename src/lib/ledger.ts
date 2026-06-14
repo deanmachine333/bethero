@@ -134,9 +134,21 @@ export function accountOpenExposure(legs: BetLeg[], accountId: string): number {
     .reduce((a, l) => a + Number(l.stake), 0);
 }
 
-/** Available = balance. Prefunded stakes were never deducted; non-prefunded stakes already are. */
-export function accountAvailable(entries: LedgerEntry[], _legs: BetLeg[], accountId: string): number {
-  return accountBalance(entries, accountId);
+/** Available = balance minus cash locked in open (non-free, non-prefunded) bets. */
+export function accountAvailable(entries: LedgerEntry[], legs: BetLeg[], accountId: string): number {
+  const bal = accountBalance(entries, accountId);
+  // Prefunded stakes are still sitting in the account balance (not deducted yet)
+  // but are committed to open bets — subtract them.
+  const lockedPrefunded = legs
+    .filter(
+      (l) =>
+        l.account_id === accountId &&
+        l.outcome === "open" &&
+        !l.is_free_bet &&
+        l.stake_prefunded,
+    )
+    .reduce((a, l) => a + Number(l.stake), 0);
+  return bal - lockedPrefunded;
 }
 
 export function accountRealisedPL(_entries: LedgerEntry[], legs: BetLeg[], accountId: string): number {

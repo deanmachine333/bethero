@@ -9,6 +9,7 @@ import {
   createAccount,
 } from "@/lib/ledger-queries";
 import { supabase } from "@/integrations/supabase/client";
+import { accountAvailable } from "@/lib/ledger";
 import {
   accountBalance,
   accountOpenExposure,
@@ -61,9 +62,11 @@ function AccountsPage() {
         {accounts.map((a) => {
           const bal = accountBalance(entries, a.id);
           const exposure = accountOpenExposure(legs, a.id);
-          const available = bal - exposure;
+          const available = accountAvailable(entries, legs, a.id);
           const pl = accountRealisedPL(entries, legs, a.id);
           const low = Number(a.min_threshold) > 0 && available < Number(a.min_threshold);
+          const hasNoEntries = !entries.some((e) => e.account_id === a.id);
+          const needsOpening = a.kind === "bookie" && hasNoEntries && Math.abs(bal) < 0.005;
           return (
             <Card key={a.id} className={a.is_active ? "" : "opacity-60"}>
               <CardContent className="p-4">
@@ -88,9 +91,14 @@ function AccountsPage() {
                     <EditAccountDialog account={a} currentBalance={bal} />
                   </div>
                 </div>
-                <div className="mt-3 text-2xl font-semibold tabular-nums">
+                <div className={`mt-3 text-2xl font-semibold tabular-nums ${bal < 0 ? "text-[var(--loss)]" : ""}`}>
                   {fmtMoney(bal, a.currency)}
                 </div>
+                {needsOpening && (
+                  <div className="mt-2 rounded border border-[var(--loss)]/40 bg-[var(--loss)]/5 px-2 py-1 text-[11px] text-[var(--loss)]">
+                    Set opening balance to track this bookie accurately
+                  </div>
+                )}
                 <div className="mt-2 grid grid-cols-3 gap-1 text-xs">
                   <Stat label="Available" value={fmtMoney(available, a.currency)} />
                   <Stat label="Exposure" value={fmtMoney(exposure, a.currency)} />
