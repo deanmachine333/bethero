@@ -319,17 +319,6 @@ function SimpleTransferForm({
   const [amount, setAmount] = useState("");
   const [memo, setMemo] = useState("");
 
-  const save = useMutation({
-    mutationFn: () => createTransfer(from, to, Number(amount), undefined, memo || undefined),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["ledger"] });
-      toast.success("Transfer recorded");
-      setAmount("");
-      setMemo("");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
   const fromBal = useMemo(
     () =>
       from
@@ -339,6 +328,30 @@ function SimpleTransferForm({
         : 0,
     [from, entries],
   );
+
+  const fromName = fromOptions.find((o) => o.id === from)?.name;
+  const toName = toOptions.find((o) => o.id === to)?.name;
+  const amtNum = Number(amount) || 0;
+  const insufficient = !!from && amtNum > 0 && amtNum > fromBal;
+
+  const save = useMutation({
+    mutationFn: () => {
+      if (insufficient) {
+        throw new Error(
+          `Insufficient balance — ${fromName ?? "Account"} only has ${fmtMoney(fromBal)} available`,
+        );
+      }
+      return createTransfer(from, to, amtNum, undefined, memo || undefined);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ledger"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      toast.success(`Moved ${fmtMoney(amtNum)} from ${fromName} to ${toName}`);
+      setAmount("");
+      setMemo("");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -390,9 +403,14 @@ function SimpleTransferForm({
         <Label className="text-xs">Memo</Label>
         <Input value={memo} onChange={(e) => setMemo(e.target.value)} />
       </div>
+      {insufficient && (
+        <div className="col-span-2 rounded border border-[var(--loss)]/40 bg-[var(--loss)]/10 px-2 py-1 text-xs text-[var(--loss)]">
+          Insufficient balance — {fromName} only has {fmtMoney(fromBal)} available
+        </div>
+      )}
       <div className="col-span-2 flex justify-end">
         <Button
-          disabled={save.isPending || !from || !to || !amount || Number(amount) <= 0}
+          disabled={save.isPending || !from || !to || !amount || amtNum <= 0 || insufficient}
           onClick={() => save.mutate()}
         >
           {save.isPending ? "…" : "Record transfer"}
