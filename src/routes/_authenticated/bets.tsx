@@ -54,6 +54,7 @@ function BetsPage() {
   const legs = legsQ.data ?? [];
 
   const [filter, setFilter] = useState<Filter>("all");
+  const [openBet, setOpenBet] = useState<Bet | null>(null);
 
   const filtered = useMemo(
     () => bets.filter((b) => filter === "all" || b.status === filter),
