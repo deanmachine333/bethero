@@ -51,7 +51,7 @@ function ImportPage() {
 
   const [step, setStep] = useState<Step>("upload");
   const [rows, setRows] = useState<ParsedRow[]>([]);
-  const [result, setResult] = useState<{ created: number; skipped: number; errors: { error: string }[] } | null>(null);
+  const [result, setResult] = useState<{ created: number; updated?: number; skipped: number; errors: { error: string }[] } | null>(null);
   const [newBookiesCreated, setNewBookiesCreated] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
