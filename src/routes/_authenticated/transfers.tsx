@@ -70,6 +70,11 @@ function TransfersPage() {
 
   return (
     <AppShell title="Transfers">
+      <div className="mb-3 flex justify-end">
+        <Button asChild variant="outline" size="sm">
+          <Link to="/transfers/import"><Upload className="mr-2 h-4 w-4" />Import CSV</Link>
+        </Button>
+      </div>
       <Card className="mb-4">
         <CardContent className="p-4">
           <Tabs defaultValue="b2b">
