@@ -174,18 +174,29 @@ function B2BForm({
   const [memo, setMemo] = useState("");
 
   const save = useMutation({
-    mutationFn: () =>
-      transferBookieToBookie(
+    mutationFn: () => {
+      const amt = Number(amount);
+      if (fromBal < amt) {
+        const acc = bookies.find((b) => b.id === from);
+        throw new Error(
+          `Insufficient balance — ${acc?.name ?? "Account"} only has ${fmtMoney(fromBal)} available`,
+        );
+      }
+      return transferBookieToBookie(
         from,
         to,
         bank!.id,
-        Number(amount),
+        amt,
         undefined,
         memo || undefined,
-      ),
+      );
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ledger"] });
-      toast.success("Transfer recorded");
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      const fromName = bookies.find((b) => b.id === from)?.name ?? "source";
+      const toName = bookies.find((b) => b.id === to)?.name ?? "destination";
+      toast.success(`Moved ${fmtMoney(Number(amount))} from ${fromName} to ${toName}`);
       setAmount("");
       setMemo("");
     },
@@ -205,6 +216,8 @@ function B2BForm({
         .filter((e) => e.account_id === from)
         .reduce((a, e) => a + Number(e.amount), 0)
     : 0;
+  const amtNum = Number(amount) || 0;
+  const insufficient = !!from && amtNum > 0 && amtNum > fromBal;
 
   return (
     <div className="grid grid-cols-2 gap-3">
@@ -272,9 +285,14 @@ function B2BForm({
           <div className="text-muted-foreground">Pick both bookies and an amount.</div>
         )}
       </div>
+      {insufficient && (
+        <div className="col-span-2 rounded border border-[var(--loss)]/40 bg-[var(--loss)]/10 px-2 py-1 text-xs text-[var(--loss)]">
+          Insufficient balance — {bookies.find((b) => b.id === from)?.name} only has {fmtMoney(fromBal)} available
+        </div>
+      )}
       <div className="col-span-2 flex justify-end">
         <Button
-          disabled={save.isPending || !from || !to || !amount || Number(amount) <= 0}
+          disabled={save.isPending || !from || !to || !amount || Number(amount) <= 0 || insufficient}
           onClick={() => save.mutate()}
         >
           {save.isPending ? "…" : "Record transfer"}
