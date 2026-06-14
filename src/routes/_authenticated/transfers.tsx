@@ -175,13 +175,6 @@ function TransfersPage() {
           </ul>
         </CardContent>
       </Card>
-    </AppShell>
-  );
-}
-
-          </ul>
-        </CardContent>
-      </Card>
       {editGroup && (
         <TransferGroupDialog
           open={!!editGroup}
