@@ -7,8 +7,8 @@ import {
   fetchBetLegs,
   fetchLedger,
   createAccount,
+  updateAccountWithCorrection,
 } from "@/lib/ledger-queries";
-import { supabase } from "@/integrations/supabase/client";
 import { accountAvailable } from "@/lib/ledger";
 import {
   accountBalance,
