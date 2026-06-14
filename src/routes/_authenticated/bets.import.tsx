@@ -37,6 +37,7 @@ function ImportPage() {
   const [step, setStep] = useState<Step>("upload");
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [result, setResult] = useState<{ created: number; skipped: number; errors: { error: string }[] } | null>(null);
+  const [newBookiesCreated, setNewBookiesCreated] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
 
   /** Bookie name → mapped existing account id ("" = create new on import). */
@@ -64,6 +65,9 @@ function ImportPage() {
     },
     onSuccess: (res) => {
       setResult(res);
+      // Capture which bookies will be newly created
+      const created = uniqueBookies.filter((n) => !bookieMap[n]);
+      setNewBookiesCreated(created);
       setStep("done");
       qc.invalidateQueries({ queryKey: ["accounts"] });
       qc.invalidateQueries({ queryKey: ["bets_v2"] });
@@ -373,6 +377,20 @@ function ImportPage() {
               {result.created} bets created · {result.skipped} duplicates skipped ·{" "}
               {result.errors.length} errors
             </div>
+            {newBookiesCreated.length > 0 && (
+              <div className="mx-auto mt-4 max-w-md rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-left text-xs">
+                <div className="font-medium text-amber-700 dark:text-amber-400">
+                  {newBookiesCreated.length} new {newBookiesCreated.length === 1 ? "bookie was" : "bookies were"} created
+                </div>
+                <div className="mt-1 text-muted-foreground">
+                  Set their opening balances so balance tracking is accurate:{" "}
+                  {newBookiesCreated.join(", ")}
+                </div>
+                <Button asChild size="sm" className="mt-2">
+                  <Link to="/accounts">Set opening balances</Link>
+                </Button>
+              </div>
+            )}
             {result.errors.length > 0 && (
               <ul className="mx-auto mt-4 max-w-md space-y-1 text-left text-xs">
                 {result.errors.slice(0, 10).map((e, i) => (
