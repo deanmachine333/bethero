@@ -452,10 +452,10 @@ function ImportPage() {
                 Back
               </Button>
               <Button
-                disabled={importMut.isPending || toImport.length === 0}
-                onClick={() => importMut.mutate()}
+                disabled={detectMut.isPending || importMut.isPending || toImport.length === 0}
+                onClick={() => detectMut.mutate()}
               >
-                {importMut.isPending ? "Importing…" : `Import ${toImport.length} rows`}
+                {detectMut.isPending ? "Checking…" : importMut.isPending ? "Importing…" : `Import ${toImport.length} rows`}
               </Button>
             </div>
           </div>
