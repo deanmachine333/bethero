@@ -50,7 +50,7 @@ export function legReturn(
   }
 }
 
-/** Profit a leg would book if it wins right now (before settlement). */
+/** Profit a leg books if THIS leg wins. */
 export function legProjectedProfit(leg: BetLeg): number {
   const stake = Number(leg.stake);
   const odds = Number(leg.odds);
@@ -69,6 +69,58 @@ export function legRealisedProfit(leg: BetLeg): number {
   return ret - cost;
 }
 
+/**
+ * Arb scenario profit:
+ * For each leg, compute the bet-level outcome IF THAT leg wins (others lose).
+ * Returns best and worst case across legs. For a 2-leg arb where stakes are
+ * mis-sized this correctly shows the spread.
+ */
+export function arbScenarios(legs: BetLeg[]): {
+  scenarios: { winningLegId: string; profit: number }[];
+  best: number;
+  worst: number;
+} {
+  const scenarios = legs.map((winLeg) => {
+    let profit = 0;
+    for (const l of legs) {
+      const stake = Number(l.stake);
+      const isWinner = l.id === winLeg.id;
+      const ret = legReturn(
+        stake,
+        Number(l.odds),
+        l.is_free_bet,
+        l.free_bet_type,
+        isWinner ? "win" : "loss",
+      );
+      const cost = l.is_free_bet ? 0 : stake;
+      profit += ret - cost;
+    }
+    return { winningLegId: winLeg.id, profit };
+  });
+  const profits = scenarios.map((s) => s.profit);
+  return {
+    scenarios,
+    best: profits.length ? Math.max(...profits) : 0,
+    worst: profits.length ? Math.min(...profits) : 0,
+  };
+}
+
+/**
+ * Projected profit for any open bet. EV bets sum per-leg projection. Arbs use
+ * scenario worst-case (the guaranteed minimum).
+ */
+export function betProjectedProfit(
+  bet: Pick<Bet, "bet_type">,
+  legs: BetLeg[],
+): { best: number; worst: number; expected: number } {
+  if (bet.bet_type === "arb" && legs.length >= 2) {
+    const s = arbScenarios(legs);
+    return { best: s.best, worst: s.worst, expected: s.worst };
+  }
+  const sum = legs.reduce((a, l) => a + legProjectedProfit(l), 0);
+  return { best: sum, worst: sum, expected: sum };
+}
+
 export function accountBalance(entries: LedgerEntry[], accountId: string): number {
   return entries
     .filter((e) => e.account_id === accountId)
@@ -82,16 +134,12 @@ export function accountOpenExposure(legs: BetLeg[], accountId: string): number {
     .reduce((a, l) => a + Number(l.stake), 0);
 }
 
-/** Available = balance − (open stakes that were NOT prefunded, so they actually moved cash). */
-export function accountAvailable(
-  entries: LedgerEntry[],
-  legs: BetLeg[],
-  accountId: string,
-): number {
+/** Available = balance. Prefunded stakes were never deducted; non-prefunded stakes already are. */
+export function accountAvailable(entries: LedgerEntry[], _legs: BetLeg[], accountId: string): number {
   return accountBalance(entries, accountId);
 }
 
-export function accountRealisedPL(entries: LedgerEntry[], legs: BetLeg[], accountId: string): number {
+export function accountRealisedPL(_entries: LedgerEntry[], legs: BetLeg[], accountId: string): number {
   return legs
     .filter((l) => l.account_id === accountId && l.outcome !== "open")
     .reduce((a, l) => a + legRealisedProfit(l), 0);
