@@ -179,8 +179,118 @@ function TransfersPage() {
   );
 }
 
-function B2BForm({
-  bookies,
+          </ul>
+        </CardContent>
+      </Card>
+      {editGroup && (
+        <TransferGroupDialog
+          open={!!editGroup}
+          onOpenChange={(o) => !o && setEditGroup(null)}
+          groupId={editGroup.groupId}
+          entries={editGroup.entries}
+          accounts={accounts}
+        />
+      )}
+    </AppShell>
+  );
+}
+
+function TransferGroupDialog({
+  open,
+  onOpenChange,
+  groupId,
+  entries,
+  accounts,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  groupId: string;
+  entries: { id: string; account_id: string; amount: number | string; occurred_at: string; memo: string | null; entry_type: string }[];
+  accounts: { id: string; name: string; currency: string }[];
+}) {
+  const qc = useQueryClient();
+  const first = entries[0];
+  const [memo, setMemo] = useState(first?.memo ?? "");
+  const [when, setWhen] = useState(first?.occurred_at?.slice(0, 16) ?? "");
+
+  const saveMemo = useMutation({
+    mutationFn: () =>
+      updateTransferGroup(
+        groupId,
+        memo,
+        when ? new Date(when).toISOString() : undefined,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ledger"] });
+      toast.success("Transfer updated");
+      onOpenChange(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const reverse = useMutation({
+    mutationFn: () => reverseTransferGroup(groupId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ledger"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      toast.success("Transfer reversed");
+      onOpenChange(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Transfer details</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <ul className="divide-y rounded border text-xs">
+            {entries.map((e) => {
+              const ac = accounts.find((a) => a.id === e.account_id);
+              const amt = Number(e.amount);
+              return (
+                <li key={e.id} className="flex items-center justify-between p-2">
+                  <span>
+                    <span className="font-medium">{ac?.name ?? "?"}</span>
+                    <span className="ml-2 text-muted-foreground">{e.entry_type}</span>
+                  </span>
+                  <span className={"font-mono " + (amt >= 0 ? "text-[var(--win)]" : "text-[var(--loss)]")}>
+                    {fmtMoney(amt)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <div>
+            <Label className="text-xs">Memo</Label>
+            <Input value={memo} onChange={(e) => setMemo(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">When</Label>
+            <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+          </div>
+          <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+            To change amount or accounts, reverse this transfer and create a new one — that
+            keeps balances correct.
+          </div>
+        </div>
+        <DialogFooter className="flex-row justify-between sm:justify-between">
+          <Button variant="ghost" size="sm" className="text-[var(--loss)]" onClick={() => reverse.mutate()}>
+            Reverse transfer
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={() => saveMemo.mutate()} disabled={saveMemo.isPending}>
+              {saveMemo.isPending ? "…" : "Save"}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
   bank,
   entries,
 }: {
