@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/bets")({
@@ -72,7 +72,12 @@ function BetsPage() {
             </Button>
           ))}
         </div>
-        <BetDialog accounts={accounts} />
+        <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/bets/import"><Upload className="mr-2 h-4 w-4" />Import CSV</Link>
+          </Button>
+          <BetDialog accounts={accounts} />
+        </div>
       </div>
 
       <div className="grid gap-2">
