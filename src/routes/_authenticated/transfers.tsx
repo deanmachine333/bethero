@@ -133,10 +133,12 @@ function TransfersPage() {
               const fromAc = accounts.find((a) => a.id === first.account_id);
               const toAc = accounts.find((a) => a.id === last.account_id);
               const amt = Math.abs(Number(first.amount));
+              const gid = g[0].transfer_group_id;
               return (
                 <li
-                  key={g[0].transfer_group_id ?? g[0].id}
-                  className="flex items-center justify-between py-2 text-sm"
+                  key={gid ?? g[0].id}
+                  className="flex cursor-pointer items-center justify-between py-2 text-sm hover:bg-muted/30"
+                  onClick={() => gid && setEditGroup({ groupId: gid, entries: g })}
                 >
                   <div className="text-muted-foreground">
                     {first.occurred_at.slice(0, 10)} · {fromAc?.name ?? "—"}{" "}
@@ -144,6 +146,7 @@ function TransfersPage() {
                     {sorted.length === 4 && (
                       <span className="ml-1 text-xs">(via bank)</span>
                     )}
+                    {first.memo && <span className="ml-1 text-xs">· {first.memo}</span>}
                   </div>
                   <div className="font-mono">{fmtMoney(amt)}</div>
                 </li>
