@@ -32,8 +32,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Upload } from "lucide-react";
+import { Plus, Upload, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { BetDetailDialog } from "@/components/bet/BetDetailDialog";
+import type { Bet, BetLeg } from "@/lib/ledger";
 
 export const Route = createFileRoute("/_authenticated/bets")({
   head: () => ({ meta: [{ title: "Bets — BetHero" }] }),
@@ -52,6 +54,7 @@ function BetsPage() {
   const legs = legsQ.data ?? [];
 
   const [filter, setFilter] = useState<Filter>("all");
+  const [openBet, setOpenBet] = useState<Bet | null>(null);
 
   const filtered = useMemo(
     () => bets.filter((b) => filter === "all" || b.status === filter),
@@ -92,7 +95,11 @@ function BetsPage() {
           const real = blegs.reduce((a, l) => a + legRealisedProfit(l), 0);
           const isArb = b.bet_type === "arb";
           return (
-            <Card key={b.id}>
+            <Card
+              key={b.id}
+              className="cursor-pointer transition hover:border-primary/50 hover:shadow-sm"
+              onClick={() => setOpenBet(b)}
+            >
               <CardContent className="p-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -103,6 +110,11 @@ function BetsPage() {
                       <Badge variant={b.status === "open" ? "outline" : "secondary"}>
                         {b.status}
                       </Badge>
+                      {b.last_manual_edit_at && (
+                        <Badge variant="outline" className="h-4 text-[10px]">
+                          <Pencil className="mr-0.5 h-2.5 w-2.5" /> edited
+                        </Badge>
+                      )}
                       <span className="text-xs text-muted-foreground">
                         {b.date_placed.slice(0, 10)}
                       </span>
@@ -175,7 +187,7 @@ function BetsPage() {
                     )}
                   </div>
                 </div>
-                <ul className="mt-2 space-y-1">
+                <ul className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()}>
                   {blegs.map((l) => {
                     const ac = accounts.find((a) => a.id === l.account_id);
                     return (
@@ -212,6 +224,15 @@ function BetsPage() {
           <div className="py-10 text-center text-sm text-muted-foreground">No bets.</div>
         )}
       </div>
+      {openBet && (
+        <BetDetailDialog
+          open={!!openBet}
+          onOpenChange={(o) => !o && setOpenBet(null)}
+          bet={openBet}
+          legs={legs.filter((l) => l.bet_id === openBet.id) as BetLeg[]}
+          accounts={accounts}
+        />
+      )}
     </AppShell>
   );
 }

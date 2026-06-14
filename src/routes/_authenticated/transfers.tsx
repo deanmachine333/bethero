@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/AppShell";
@@ -7,13 +7,22 @@ import {
   fetchLedger,
   createTransfer,
   transferBookieToBookie,
+  updateTransferGroup,
+  reverseTransferGroup,
 } from "@/lib/ledger-queries";
-import { accountBalance, fmtMoney } from "@/lib/ledger";
+import { fmtMoney } from "@/lib/ledger";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -21,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowRight, Banknote } from "lucide-react";
+import { ArrowRight, Banknote, Upload } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/transfers")({
@@ -30,12 +39,16 @@ export const Route = createFileRoute("/_authenticated/transfers")({
 });
 
 function TransfersPage() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const accountsQ = useQuery({ queryKey: ["accounts"], queryFn: fetchAccounts });
   const ledgerQ = useQuery({ queryKey: ["ledger"], queryFn: fetchLedger });
   const accounts = accountsQ.data ?? [];
   const entries = ledgerQ.data ?? [];
   const bank = accounts.find((a) => a.kind === "bank");
   const bookies = accounts.filter((a) => a.kind === "bookie");
+  const [editGroup, setEditGroup] = useState<{ groupId: string; entries: typeof entries } | null>(null);
+
+  if (pathname !== "/transfers") return <Outlet />;
 
   // history
   const groups = new Map<string, typeof entries>();
@@ -57,6 +70,11 @@ function TransfersPage() {
 
   return (
     <AppShell title="Transfers">
+      <div className="mb-3 flex justify-end">
+        <Button asChild variant="outline" size="sm">
+          <Link to="/transfers/import"><Upload className="mr-2 h-4 w-4" />Import CSV</Link>
+        </Button>
+      </div>
       <Card className="mb-4">
         <CardContent className="p-4">
           <Tabs defaultValue="b2b">
@@ -115,10 +133,12 @@ function TransfersPage() {
               const fromAc = accounts.find((a) => a.id === first.account_id);
               const toAc = accounts.find((a) => a.id === last.account_id);
               const amt = Math.abs(Number(first.amount));
+              const gid = g[0].transfer_group_id;
               return (
                 <li
-                  key={g[0].transfer_group_id ?? g[0].id}
-                  className="flex items-center justify-between py-2 text-sm"
+                  key={gid ?? g[0].id}
+                  className="flex cursor-pointer items-center justify-between py-2 text-sm hover:bg-muted/30"
+                  onClick={() => gid && setEditGroup({ groupId: gid, entries: g })}
                 >
                   <div className="text-muted-foreground">
                     {first.occurred_at.slice(0, 10)} · {fromAc?.name ?? "—"}{" "}
@@ -126,6 +146,7 @@ function TransfersPage() {
                     {sorted.length === 4 && (
                       <span className="ml-1 text-xs">(via bank)</span>
                     )}
+                    {first.memo && <span className="ml-1 text-xs">· {first.memo}</span>}
                   </div>
                   <div className="font-mono">{fmtMoney(amt)}</div>
                 </li>
@@ -154,7 +175,113 @@ function TransfersPage() {
           </ul>
         </CardContent>
       </Card>
+      {editGroup && (
+        <TransferGroupDialog
+          open={!!editGroup}
+          onOpenChange={(o) => !o && setEditGroup(null)}
+          groupId={editGroup.groupId}
+          entries={editGroup.entries}
+          accounts={accounts}
+        />
+      )}
     </AppShell>
+  );
+}
+
+function TransferGroupDialog({
+  open,
+  onOpenChange,
+  groupId,
+  entries,
+  accounts,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  groupId: string;
+  entries: { id: string; account_id: string; amount: number | string; occurred_at: string; memo: string | null; entry_type: string }[];
+  accounts: { id: string; name: string; currency: string }[];
+}) {
+  const qc = useQueryClient();
+  const first = entries[0];
+  const [memo, setMemo] = useState(first?.memo ?? "");
+  const [when, setWhen] = useState(first?.occurred_at?.slice(0, 16) ?? "");
+
+  const saveMemo = useMutation({
+    mutationFn: () =>
+      updateTransferGroup(
+        groupId,
+        memo,
+        when ? new Date(when).toISOString() : undefined,
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ledger"] });
+      toast.success("Transfer updated");
+      onOpenChange(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const reverse = useMutation({
+    mutationFn: () => reverseTransferGroup(groupId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ledger"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      toast.success("Transfer reversed");
+      onOpenChange(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Transfer details</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <ul className="divide-y rounded border text-xs">
+            {entries.map((e) => {
+              const ac = accounts.find((a) => a.id === e.account_id);
+              const amt = Number(e.amount);
+              return (
+                <li key={e.id} className="flex items-center justify-between p-2">
+                  <span>
+                    <span className="font-medium">{ac?.name ?? "?"}</span>
+                    <span className="ml-2 text-muted-foreground">{e.entry_type}</span>
+                  </span>
+                  <span className={"font-mono " + (amt >= 0 ? "text-[var(--win)]" : "text-[var(--loss)]")}>
+                    {fmtMoney(amt)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <div>
+            <Label className="text-xs">Memo</Label>
+            <Input value={memo} onChange={(e) => setMemo(e.target.value)} />
+          </div>
+          <div>
+            <Label className="text-xs">When</Label>
+            <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />
+          </div>
+          <div className="rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+            To change amount or accounts, reverse this transfer and create a new one — that
+            keeps balances correct.
+          </div>
+        </div>
+        <DialogFooter className="flex-row justify-between sm:justify-between">
+          <Button variant="ghost" size="sm" className="text-[var(--loss)]" onClick={() => reverse.mutate()}>
+            Reverse transfer
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button onClick={() => saveMemo.mutate()} disabled={saveMemo.isPending}>
+              {saveMemo.isPending ? "…" : "Save"}
+            </Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

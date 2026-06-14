@@ -7,8 +7,8 @@ import {
   fetchBetLegs,
   fetchLedger,
   createAccount,
+  updateAccountWithCorrection,
 } from "@/lib/ledger-queries";
-import { supabase } from "@/integrations/supabase/client";
 import { accountAvailable } from "@/lib/ledger";
 import {
   accountBalance,
@@ -236,36 +236,21 @@ function EditAccountDialog({ account, currentBalance }: { account: Account; curr
 
   const save = useMutation({
     mutationFn: async () => {
-      // 1. Update account metadata
-      const { error: upErr } = await supabase
-        .from("accounts")
-        .update({
-          name: name.trim(),
-          currency: currency.trim().toUpperCase() || "GBP",
-          min_threshold: Number(minThreshold) || 0,
-          is_active: isActive,
-        })
-        .eq("id", account.id);
-      if (upErr) throw upErr;
-
-      // 2. Balance adjustment if changed
       const target = Number(targetBalance);
       const delta = target - currentBalance;
-      if (Number.isFinite(target) && Math.abs(delta) > 0.005) {
-        if (!adjustMemo.trim()) {
-          throw new Error("Memo required when adjusting balance");
-        }
-        const { data: u } = await supabase.auth.getUser();
-        if (!u.user) throw new Error("not signed in");
-        const { error: lErr } = await supabase.from("ledger_entries").insert({
-          user_id: u.user.id,
-          account_id: account.id,
-          amount: delta,
-          entry_type: "manual_correction",
-          memo: adjustMemo.trim(),
-        });
-        if (lErr) throw lErr;
+      const willAdjust = Number.isFinite(target) && Math.abs(delta) > 0.005;
+      if (willAdjust && !adjustMemo.trim()) {
+        throw new Error("Memo required when adjusting balance");
       }
+      await updateAccountWithCorrection({
+        id: account.id,
+        name: name.trim(),
+        currency: currency.trim().toUpperCase() || "GBP",
+        min_threshold: Number(minThreshold) || 0,
+        is_active: isActive,
+        target_balance: willAdjust ? target : undefined,
+        memo: willAdjust ? adjustMemo.trim() : undefined,
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["accounts"] });

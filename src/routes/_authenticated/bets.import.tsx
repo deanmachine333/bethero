@@ -18,14 +18,29 @@ import {
 import { AlertTriangle, Upload, CheckCircle2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { parseBetheroCsv, rowsToBetPayload, type ParsedRow } from "@/lib/csv";
-import { fetchAccounts, importBetsBatch } from "@/lib/ledger-queries";
+import {
+  fetchAccounts,
+  findBetsByExternalRefs,
+  importBetsBatch,
+  reimportBet,
+} from "@/lib/ledger-queries";
+import type { Bet, BetLeg } from "@/lib/ledger";
 
 export const Route = createFileRoute("/_authenticated/bets/import")({
   head: () => ({ meta: [{ title: "Import — BetHero" }] }),
   component: ImportPage,
 });
 
-type Step = "upload" | "review" | "done";
+type Step = "upload" | "review" | "conflicts" | "done";
+
+type Conflict = {
+  externalRef: string;
+  bet: Bet;
+  legs: BetLeg[];
+  incoming: ReturnType<typeof rowsToBetPayload>[number];
+  /** "keep" preserves local, "replace" overwrites everything from CSV. */
+  resolution: "keep" | "replace";
+};
 
 function ImportPage() {
   const qc = useQueryClient();
@@ -36,9 +51,10 @@ function ImportPage() {
 
   const [step, setStep] = useState<Step>("upload");
   const [rows, setRows] = useState<ParsedRow[]>([]);
-  const [result, setResult] = useState<{ created: number; skipped: number; errors: { error: string }[] } | null>(null);
+  const [result, setResult] = useState<{ created: number; updated?: number; skipped: number; errors: { error: string }[] } | null>(null);
   const [newBookiesCreated, setNewBookiesCreated] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [conflicts, setConflicts] = useState<Conflict[]>([]);
 
   /** Bookie name → mapped existing account id ("" = create new on import). */
   const [bookieMap, setBookieMap] = useState<Record<string, string>>({});
@@ -49,23 +65,99 @@ function ImportPage() {
     return [...set].sort();
   }, [rows]);
 
+  function applyBookieMapping(srcRows: ParsedRow[]) {
+    return srcRows.map((r) => {
+      const id = bookieMap[r.bookie];
+      if (id) {
+        const acct = bookies.find((b) => b.id === id);
+        if (acct) return { ...r, bookie: acct.name };
+      }
+      return r;
+    });
+  }
+
+  /** Step 1 of import: classify rows as new vs conflict, then either go to conflicts step or import. */
+  const detectMut = useMutation({
+    mutationFn: async () => {
+      const mapped = applyBookieMapping(rows.filter((r) => !r.skip));
+      const payload = rowsToBetPayload(mapped) as Array<{ external_ref: string }>;
+      const refs = payload.map((p) => p.external_ref).filter(Boolean);
+      const existing = await findBetsByExternalRefs(refs);
+      const newConflicts: Conflict[] = [];
+      for (const p of payload) {
+        const match = existing.get(p.external_ref);
+        if (match) {
+          newConflicts.push({
+            externalRef: p.external_ref,
+            bet: match.bet,
+            legs: match.legs,
+            incoming: p,
+            resolution: match.bet.last_manual_edit_at ? "keep" : "replace",
+          });
+        }
+      }
+      return { payload, conflicts: newConflicts };
+    },
+    onSuccess: ({ conflicts: c }) => {
+      if (c.length > 0) {
+        setConflicts(c);
+        setStep("conflicts");
+      } else {
+        importMut.mutate();
+      }
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const importMut = useMutation({
     mutationFn: async () => {
-      // Apply bookie mapping: replace each row's bookie with the chosen existing name.
-      const mapped = rows.map((r) => {
-        const id = bookieMap[r.bookie];
-        if (id) {
-          const acct = bookies.find((b) => b.id === id);
-          if (acct) return { ...r, bookie: acct.name };
+      const mapped = applyBookieMapping(rows.filter((r) => !r.skip));
+      const payload = rowsToBetPayload(mapped) as Array<{ external_ref: string } & Record<string, unknown>>;
+      // Conflict-handling: split into new (no existing match) vs reimport
+      const conflictMap = new Map(conflicts.map((c) => [c.externalRef, c]));
+      const toCreate: unknown[] = [];
+      const toReimport: Conflict[] = [];
+      for (const p of payload) {
+        const c = conflictMap.get(p.external_ref);
+        if (c) {
+          if (c.resolution === "replace") toReimport.push(c);
+          // else "keep" → do nothing for this bet
+        } else {
+          toCreate.push(p);
         }
-        return r;
-      });
-      const payload = rowsToBetPayload(mapped);
-      return importBetsBatch(payload);
+      }
+      const createResult = toCreate.length
+        ? await importBetsBatch(toCreate)
+        : { created: 0, skipped: 0, errors: [] as { error: string }[] };
+
+      let updated = 0;
+      const updateErrors: { error: string }[] = [];
+      for (const c of toReimport) {
+        try {
+          await reimportBet(c.bet.id, c.incoming, [
+            "event",
+            "market",
+            "notes",
+            "stake",
+            "odds",
+            "outcome",
+            "is_free_bet",
+            "stake_prefunded",
+          ]);
+          updated += 1;
+        } catch (e) {
+          updateErrors.push({ error: e instanceof Error ? e.message : String(e) });
+        }
+      }
+      return {
+        created: createResult.created,
+        skipped: createResult.skipped + conflicts.filter((c) => c.resolution === "keep").length,
+        updated,
+        errors: [...createResult.errors, ...updateErrors],
+      };
     },
     onSuccess: (res) => {
       setResult(res);
-      // Capture which bookies will be newly created
       const created = uniqueBookies.filter((n) => !bookieMap[n]);
       setNewBookiesCreated(created);
       setStep("done");
@@ -73,7 +165,9 @@ function ImportPage() {
       qc.invalidateQueries({ queryKey: ["bets_v2"] });
       qc.invalidateQueries({ queryKey: ["bet_legs"] });
       qc.invalidateQueries({ queryKey: ["ledger"] });
-      toast.success(`Imported ${res.created}, skipped ${res.skipped}`);
+      toast.success(
+        `Created ${res.created}, updated ${res.updated}, skipped ${res.skipped}`,
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -358,10 +452,107 @@ function ImportPage() {
                 Back
               </Button>
               <Button
-                disabled={importMut.isPending || toImport.length === 0}
+                disabled={detectMut.isPending || importMut.isPending || toImport.length === 0}
+                onClick={() => detectMut.mutate()}
+              >
+                {detectMut.isPending ? "Checking…" : importMut.isPending ? "Importing…" : `Import ${toImport.length} rows`}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {step === "conflicts" && (
+        <>
+          <Card className="mb-4">
+            <CardContent className="p-4">
+              <div className="mb-2 text-sm font-medium">
+                {conflicts.length} matching bet{conflicts.length === 1 ? "" : "s"} already exist
+              </div>
+              <div className="text-xs text-muted-foreground mb-3">
+                These bets share an import key with existing bets. Manually-edited bets default
+                to <strong>Keep local</strong>; others default to <strong>Replace from CSV</strong>.
+                Replacing reconciles ledger entries — old stake/settlement effects are reversed and
+                rewritten from the CSV values, so balances stay correct.
+              </div>
+              <ul className="divide-y rounded border">
+                {conflicts.map((c) => {
+                  const incLegs = (c.incoming as { legs?: Array<Record<string, unknown>> }).legs ?? [];
+                  return (
+                    <li key={c.externalRef} className="grid grid-cols-[1fr_auto] gap-3 p-3 text-xs">
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{c.bet.event}</div>
+                        <div className="text-muted-foreground">{c.bet.market}</div>
+                        <div className="mt-1 grid grid-cols-2 gap-2 text-[10px]">
+                          <div className="rounded bg-muted/40 p-1">
+                            <div className="font-semibold">Local</div>
+                            {c.legs.map((l) => (
+                              <div key={l.id} className="font-mono">
+                                £{Number(l.stake)} @ {Number(l.odds)} · {l.outcome}
+                                {l.is_free_bet && " · FREE"}
+                              </div>
+                            ))}
+                            {c.bet.last_manual_edit_at && (
+                              <Badge variant="secondary" className="mt-1 h-4 text-[9px]">edited</Badge>
+                            )}
+                          </div>
+                          <div className="rounded bg-muted/40 p-1">
+                            <div className="font-semibold">CSV</div>
+                            {incLegs.map((l, i) => (
+                              <div key={i} className="font-mono">
+                                £{Number(l.stake)} @ {Number(l.odds)} · {String(l.outcome ?? "open")}
+                                {l.is_free_bet ? " · FREE" : ""}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          size="sm"
+                          variant={c.resolution === "keep" ? "default" : "outline"}
+                          onClick={() =>
+                            setConflicts((curr) =>
+                              curr.map((x) =>
+                                x.externalRef === c.externalRef ? { ...x, resolution: "keep" } : x,
+                              ),
+                            )
+                          }
+                        >
+                          Keep local
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={c.resolution === "replace" ? "default" : "outline"}
+                          onClick={() =>
+                            setConflicts((curr) =>
+                              curr.map((x) =>
+                                x.externalRef === c.externalRef ? { ...x, resolution: "replace" } : x,
+                              ),
+                            )
+                          }
+                        >
+                          Replace
+                        </Button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </CardContent>
+          </Card>
+          <div className="sticky bottom-2 flex items-center justify-between gap-3 rounded-lg border bg-background p-3 shadow-sm">
+            <div className="text-sm text-muted-foreground">
+              {conflicts.filter((c) => c.resolution === "replace").length} will be replaced ·{" "}
+              {conflicts.filter((c) => c.resolution === "keep").length} kept as-is
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setStep("review")}>Back</Button>
+              <Button
+                disabled={importMut.isPending}
                 onClick={() => importMut.mutate()}
               >
-                {importMut.isPending ? "Importing…" : `Import ${toImport.length} rows`}
+                {importMut.isPending ? "Importing…" : "Confirm import"}
               </Button>
             </div>
           </div>
@@ -374,7 +565,7 @@ function ImportPage() {
             <CheckCircle2 className="mx-auto mb-3 h-8 w-8 text-[var(--win)]" />
             <div className="text-xl font-semibold">Import complete</div>
             <div className="mt-2 text-sm text-muted-foreground">
-              {result.created} bets created · {result.skipped} duplicates skipped ·{" "}
+              {result.created} created · {result.updated ?? 0} updated · {result.skipped} skipped ·{" "}
               {result.errors.length} errors
             </div>
             {newBookiesCreated.length > 0 && (
